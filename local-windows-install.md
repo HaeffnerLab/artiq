@@ -65,6 +65,18 @@ Setting up Julia to run simulations with IonSim
 If you want to run local simulations from the Lattice ARTIQ Dashboard, you'll need to set up Julia, IonSim, and PyJulia:
 
 1. Install Julia from https://julialang.org/downloads/.
+1. From a Julia prompt, use `Sys.BINDIR` to see where Julia's `bin` folder is:
+    ```
+    julia> Sys.BINDIR
+    "C:\\Path\\To\\Julia\\Julia-1.4.1\\bin"
+    ```
+    Then add that folder to your system `PATH` environment variable. 
+    
+    > 🛈 To add a folder to your system `PATH` in Windows: Type `sysdm.cpl` in the Start menu,
+    > go to the "Advanced" tab, click "Environment Variables", find "Path", click "Edit...",
+    > and add the folder (with double-slashes replaced by single-slashes) to the list.
+    > You must restart all open command prompts for the change to take effect.
+    
 1. From a Julia prompt, run the following commands to install the required packages:
     ```julia
     using Pkg
@@ -76,6 +88,7 @@ If you want to run local simulations from the Lattice ARTIQ Dashboard, you'll ne
     ```
     conda activate artiq
     pip install julia==0.5.3
+    python -c "import julia; julia.install()"
     ```
 
 Running Lattice's LabRAD + ARTIQ locally on Windows
