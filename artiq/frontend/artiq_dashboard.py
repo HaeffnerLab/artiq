@@ -19,7 +19,7 @@ from artiq.dashboard import (experiments, shortcuts, explorer,
                              moninj, datasets, schedule, applets_ccb,
                              pmt_control, parameter_editor)
 from artiq.dashboard.laser_room.laser_room_tab import LaserRoomTab
-from artiq.dashboard.temp_controller.temp_controller_tab import TempControllerTab
+#from artiq.dashboard.temp_controller.temp_controller_tab import TempControllerTab
 from artiq.dashboard.drift_tracker.drift_tracker import DriftTracker
 from artiq.dashboard.readout_histograms.readout_histograms import ReadoutHistograms
 import labrad
@@ -125,7 +125,7 @@ def parameter_vault_disconnect(*args):
 def main():
     # connect to labrad
     acxn = connection()
-    acxn.connect()
+    acxn.connect(host='localhost', password='lab')
     acxn.add_on_connect("ParameterVault", parameter_vault_connect)
     acxn.add_on_disconnect("ParameterVault", parameter_vault_disconnect)
     # connect to laser room labrad
@@ -272,9 +272,10 @@ def main():
     smgr.register(histograms_tab)
     needs_parameter_vault.append(histograms_tab)
     tabs.addTab(histograms_tab, "Readout")
-    drift_tracker_tab = DriftTracker(laser_room_acxn)
-    smgr.register(drift_tracker_tab)
-    tabs.addTab(drift_tracker_tab, "Drift Tracker")
+    # TEMP: disable drift tracker tab to avoid noisy logging
+    #drift_tracker_tab = DriftTracker(laser_room_acxn)
+    #smgr.register(drift_tracker_tab)
+    #tabs.addTab(drift_tracker_tab, "Drift Tracker")
 
     smgr.load()
     smgr.start()

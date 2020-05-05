@@ -1158,8 +1158,8 @@ class LLVMIRGenerator:
             llnow_loptr = self.llbuilder.gep(llnow_hiptr, [self.llindex(1)])
             if self.target.little_endian:
                 lltime_hi, lltime_lo = lltime_lo, lltime_hi
-            llstore_hi = self.llbuilder.store_atomic(lltime_hi, llnow_hiptr, ordering="seq_cst", align=4)
-            llstore_lo = self.llbuilder.store_atomic(lltime_lo, llnow_loptr, ordering="seq_cst", align=4)
+            llstore_hi = self.llbuilder.store(lltime_hi, llnow_hiptr, align=4)
+            llstore_lo = self.llbuilder.store(lltime_lo, llnow_loptr, align=4)
             return llstore_lo
         elif insn.op == "delay_mu":
             interval, = insn.operands
@@ -1173,8 +1173,8 @@ class LLVMIRGenerator:
             llnow_loptr = self.llbuilder.gep(llnow_hiptr, [self.llindex(1)])
             if self.target.little_endian:
                 lladjusted_hi, lladjusted_lo = lladjusted_lo, lladjusted_hi
-            llstore_hi = self.llbuilder.store_atomic(lladjusted_hi, llnow_hiptr, ordering="seq_cst", align=4)
-            llstore_lo = self.llbuilder.store_atomic(lladjusted_lo, llnow_loptr, ordering="seq_cst", align=4)
+            llstore_hi = self.llbuilder.store(lladjusted_hi, llnow_hiptr, align=4)
+            llstore_lo = self.llbuilder.store(lladjusted_lo, llnow_loptr, align=4)
             return llstore_lo
         elif insn.op == "watchdog_set":
             interval, = insn.operands

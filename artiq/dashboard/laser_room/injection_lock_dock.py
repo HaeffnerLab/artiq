@@ -93,9 +93,9 @@ class InjectionLock(QtWidgets.QFrame):
         from labrad.wrappers import connectAsync
         from labrad.types import Error
         try:
-            self.cxn = yield connectAsync('192.168.169.49', password='lab', tls_mode='off')
+            self.cxn = yield connectAsync('localhost', password='lab', tls_mode='off')
         except:
-            self.cxn = yield connectAsync('192.168.169.49', password='lab')
+            self.cxn = yield connectAsync('localhost', password='lab')
         yield self.setupListeners()
 
     @inlineCallbacks
