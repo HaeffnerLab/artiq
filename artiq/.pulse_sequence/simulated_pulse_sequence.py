@@ -172,6 +172,7 @@ class PulseSequence:
                 self.parameter_dict[collection_name + "." + param_name] = self.p[collection_name][param_name]
 
         # add scan params to parameter_dict
+        self.parameter_dict["Scan.sequence_name"] = self.sequence_name
         self.parameter_dict["Scan.parameter_name"] = self.scan_param_name
         for k,v in self.scan_params.items():
             self.parameter_dict["Scan." + k] = v
