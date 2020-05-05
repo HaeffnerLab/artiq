@@ -592,6 +592,9 @@ class ddsControlWidget(QtWidgets.QFrame):
         self.parent.all_dds_specs.update({self.name: new_values})
         self.parent.expid_dds["arguments"].update(
                 {"specs": pyon.encode(self.parent.all_dds_specs)})
+        if os.name == "nt":
+            # Skip automatic DDS param updates when running from Windows
+            return
         self.scheduler.submit("main", self.parent.expid_dds, priority=1)
         cxn = labrad.connect()
         p = cxn.parametervault
