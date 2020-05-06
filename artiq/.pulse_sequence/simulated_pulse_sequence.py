@@ -140,8 +140,10 @@ class PulseSequence:
         self.data = edict()
         self.grapher = None
         self.scheduler = SimulationScheduler()
+        self.rcg_tabs = dict()
 
         self.sequence_name = type(self).__name__
+        self.rcg_tabs[self.sequence_name] = dict()
         self.timestamp = datetime.now().strftime("%H%M_%S")
         self.dir = os.path.join(os.path.expanduser("~"), "data", "simulation",
                                 datetime.now().strftime("%Y-%m-%d"), self.sequence_name)
