@@ -28,7 +28,7 @@ from twisted.internet.defer import inlineCallbacks
 
 
 needs_parameter_vault = list()
-laser_room_ip_address = "192.168.169.49"
+laser_room_ip_address = "localhost"
 lase_room_password = "lab"
 
 
@@ -272,10 +272,9 @@ def main():
     smgr.register(histograms_tab)
     needs_parameter_vault.append(histograms_tab)
     tabs.addTab(histograms_tab, "Readout")
-    # TEMP: disable drift tracker tab to avoid noisy logging
-    #drift_tracker_tab = DriftTracker(laser_room_acxn)
-    #smgr.register(drift_tracker_tab)
-    #tabs.addTab(drift_tracker_tab, "Drift Tracker")
+    drift_tracker_tab = DriftTracker(laser_room_acxn)
+    smgr.register(drift_tracker_tab)
+    tabs.addTab(drift_tracker_tab, "Drift Tracker")
 
     smgr.load()
     smgr.start()
