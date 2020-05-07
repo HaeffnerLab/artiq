@@ -1,3 +1,4 @@
+from artiq.dashboard.drift_tracker import client_config as dt_config
 from artiq.language import core as core_language
 from artiq.protocols.pc_rpc import Client
 from datetime import datetime
@@ -132,6 +133,7 @@ class PulseSequence:
     def __init__(self):
         self.p = None
         self.set_subsequence = dict()
+        self.run_after = dict()
         self.selected_scan = dict()
         self.time_manager = None
         self.parameter_dict = None
@@ -154,14 +156,12 @@ class PulseSequence:
 
     def set_submission_arguments(self, submission_arguments):
         self.submission_arguments = submission_arguments
-        self.scan_param_name = self.submission_arguments[self.sequence_name + "-Scan_Selection"]
-        self.scan_params = self.submission_arguments[self.sequence_name + ":" + self.scan_param_name]
     
     def write_line(self, output_file, line):
         # writes a line to both the file and the logger (if uncommented)
         output_file.write(line + "\n")
         #logger.info(line)
-    
+
     def load_parameters(self):
         if not self.p:
             self.p = self.load_parameter_vault()
@@ -173,13 +173,26 @@ class PulseSequence:
             for param_name in self.p[collection_name]:
                 self.parameter_dict[collection_name + "." + param_name] = self.p[collection_name][param_name]
 
+        # update trap frequencies in member variables
+        self.trap_frequency_names = list()
+        self.trap_frequency_values = list()
+        for name, value in self.p.TrapFrequencies.items():
+            self.trap_frequency_names.append(name)
+            self.trap_frequency_values.append(value)
+    
+    def write_parameters_for_scan(self, scan_name):
+        if not self.p:
+            self.load_parameters()
+
         # add scan params to parameter_dict
         self.parameter_dict["Scan.sequence_name"] = self.sequence_name
-        self.parameter_dict["Scan.parameter_name"] = self.scan_param_name
-        for k,v in self.scan_params.items():
+        self.parameter_dict["Scan.scan_name"] = scan_name
+        self.parameter_dict["Scan.parameter_name"] = self.scan_parameter_name
+        for k,v in self.scan_settings.items():
             self.parameter_dict["Scan." + k] = v
 
-        filename = self.timestamp + "_params.txt"
+        # write all the parameters to a file
+        filename = self.timestamp + "_params_" + scan_name + ".txt"
         with open(filename, "w") as param_file:
             self.write_line(param_file, str(self.parameter_dict))
         print("** SIMULATION ** parameters written to " + os.path.join(self.dir, filename))
@@ -203,28 +216,37 @@ class PulseSequence:
         return Main.simulate_with_ion_sim(self.parameter_dict, self.simulated_pulses, self.num_ions)
 
     def simulate(self):
-        self.setup_grapher()
         self.load_parameters()
+        self.setup_grapher()
         self.setup_carriers()
         self.setup_dds()
         
         self.N = int(self.p.StateReadout.repeat_each_measurement)
-        
-        self.run_initially()
 
         self.num_ions = int(self.p.IonsOnCamera.ion_number)
-        x_data = np.array([], dtype=float)
-        y_data = {}
         
-        for seq_name, scan_list in PulseSequence.scan_params.items():
-            self.selected_scan[seq_name] = seq_name
-            self.data[seq_name] = edict(x=[], y=[])
+        for scan_name in PulseSequence.scan_params:
+            self.data[scan_name] = edict(x=[], y=[])
+            x_data = np.array([], dtype=float)
+            y_data = {}
+            
+            # Look up the settings for the current scan.
+            self.scan_parameter_name = self.submission_arguments[scan_name + "-Scan_Selection"]
+            self.scan_settings = self.submission_arguments[scan_name + ":" + self.scan_parameter_name]
+            self.selected_scan[scan_name] = self.scan_parameter_name
+            
+            # Output parameters to be used for the current scan.
+            self.write_parameters_for_scan(scan_name)
+
+            # Call run_initially, but only if this is the first scan.
+            if scan_name == list(PulseSequence.scan_params.keys())[0]:
+                self.run_initially()
             
             # Determine the list of scan points.
-            variable_param_name = self.scan_param_name.replace(".", "_")
+            variable_param_name = self.scan_parameter_name.replace(".", "_")
             scan_points = [self.get_variable_parameter(variable_param_name)]
-            if self.scan_params["ty"] == "RangeScan":
-                scan_points = np.linspace(self.scan_params["start"], self.scan_params["stop"], self.scan_params["npoints"])
+            if self.scan_settings["ty"] == "RangeScan":
+                scan_points = np.linspace(self.scan_settings["start"], self.scan_settings["stop"], self.scan_settings["npoints"])
 
             # Iterate over the scan points and simulate one pulse sequence per point.
             for scan_idx, scan_point in enumerate(scan_points):
@@ -234,13 +256,12 @@ class PulseSequence:
 
                 # Overwrite the scan parameter value with the current scan point.
                 setattr(self, variable_param_name, scan_point)
-                self.parameter_dict[self.scan_param_name] = scan_point
+                self.parameter_dict[self.scan_parameter_name] = scan_point
 
-                main_sequence_name = list(self.set_subsequence.keys())[0]
-                self.set_subsequence[main_sequence_name]()
+                self.set_subsequence[scan_name]()
 
                 # Run the pulse sequence function to generate the pulse sequence.
-                current_sequence = getattr(self, main_sequence_name)
+                current_sequence = getattr(self, scan_name)
                 current_sequence()
 
                 # Write the generated pulse sequences to a file.
@@ -250,7 +271,7 @@ class PulseSequence:
                 print("** SIMULATION ** pulse sequence written to " + os.path.join(self.dir, filename))
                 
                 # Call IonSim code to simulate the dynamics.
-                print("** SIMULATION ** Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_param_name + "=" + str(scan_point))
+                print("** SIMULATION ** Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_parameter_name + "=" + str(scan_point))
                 result_data = self.simulate_with_ion_sim()
                 
                 # Record and plot the result.
@@ -260,24 +281,32 @@ class PulseSequence:
                         y_data[result_name] = np.array([], dtype=float)
                     y_data[result_name] = np.append(y_data[result_name], result_value)
                     if self.grapher:
-                        plot_title = self.timestamp + " - " + self.sequence_name + " - state:" + result_name
+                        plot_title = self.timestamp + " - " + scan_name + " - state:" + result_name
                         self.grapher.plot(x_data, y_data[result_name], tab_name="IonSim",
                             plot_title=plot_title, append=True,
                             file_="", range_guess=(scan_points[0], scan_points[-1]))
         
-        # Add the results to self.data and output to file.
-        self.data[seq_name]["x"] = x_data
-        for y_name, y_data in y_data.items():
-            self.data[seq_name]["y"].append(y_data)
-        filename = self.timestamp + "_results.txt"
-        with open(filename, "w") as results_file:
-            self.write_line(results_file, str(self.data[seq_name]))
-        print("** SIMULATION ** results written to " + os.path.join(self.dir, filename))
+            # Add the results to self.data and output to file.
+            self.data[scan_name]["x"] = x_data
+            for y_name, y_data in y_data.items():
+                self.data[scan_name]["y"].append(y_data)
+            filename = self.timestamp + "_results.txt"
+            with open(filename, "w") as results_file:
+                self.write_line(results_file, str(self.data[scan_name]))
+            print("** SIMULATION ** results written to " + os.path.join(self.dir, filename))
+            
+            if scan_name in self.run_after:
+                try:
+                    self.run_after[scan_name]()
+                except FitError:
+                    logger.error("FitError encountered in run_after for " + scan_name, exc_info=True)
+                    raise
 
         try:
             self.run_finally()
         except FitError:
             logger.error("FitError encountered in run_finally", exc_info=True)
+            raise
 
     def setup_grapher(self):
         if not self.grapher:
@@ -288,33 +317,30 @@ class PulseSequence:
                 self.grapher = None
 
     def setup_carriers(self):
-        self.carrier_names = ["S+1/2D-3/2",
-                              "S-1/2D-5/2",
-                              "S+1/2D-1/2",
-                              "S-1/2D-3/2",
-                              "S+1/2D+1/2",
-                              "S-1/2D-1/2",
-                              "S+1/2D+3/2",
-                              "S-1/2D+1/2",
-                              "S+1/2D+5/2",
-                              "S-1/2D+3/2"]
-        self.carrier_dict = {"S+1/2D-3/2": 0,
-                             "S-1/2D-5/2": 1,
-                             "S+1/2D-1/2": 2,
-                             "S-1/2D-3/2": 3,
-                             "S+1/2D+1/2": 4,
-                             "S-1/2D-1/2": 5,
-                             "S+1/2D+3/2": 6,
-                             "S-1/2D+1/2": 7,
-                             "S+1/2D+5/2": 8,
-                             "S-1/2D+3/2": 9}
-        # in simulation mode, all carriers are 0 for now.
-        self.carrier_values = [0.] * 10
-        self.trap_frequency_names = list()
-        self.trap_frequency_values = list()
-        for name, value in self.p.TrapFrequencies.items():
-            self.trap_frequency_names.append(name)
-            self.trap_frequency_values.append(value)
+        self.carrier_names = [
+            "S+1/2D-3/2", "S-1/2D-5/2", "S+1/2D-1/2", "S-1/2D-3/2", "S+1/2D+1/2",
+            "S-1/2D-1/2", "S+1/2D+3/2", "S-1/2D+1/2", "S+1/2D+5/2", "S-1/2D+3/2"]
+        self.carrier_dict = {}
+        for idx, name in enumerate(self.carrier_names):
+            self.carrier_dict[name] = idx
+        self.carrier_values = self.get_carriers_from_sd_tracker()
+
+    def get_carriers_from_sd_tracker(self):
+        global_cxn = labrad.connect(dt_config.global_address,
+                                    password=dt_config.global_password,
+                                    tls_mode="off")
+        sd_tracker = global_cxn.sd_tracker_global
+        current_lines = sd_tracker.get_current_lines(dt_config.client_name)
+        _list = [0.] * 10
+
+        for carrier, frequency in current_lines:
+            frequency = frequency.inBaseUnits()
+            abs_freq = frequency[frequency.units]
+            for i in range(10):
+                if carrier == self.carrier_names[i]:
+                    _list[i] = abs_freq
+                    break
+        return _list
 
     def get_trap_frequency(self, name):
         freq = 0.
@@ -539,7 +565,6 @@ class PulseSequence:
 
     def load_parameter_vault(self):
         # Grab parametervault params:
-        G = globals().copy()
         cxn = labrad.connect()
         p = cxn.parametervault
         collections = p.get_collections()
@@ -554,13 +579,6 @@ class PulseSequence:
                         if isinstance(param, WithUnit):
                             param = param.inBaseUnits()
                             param = param[param.units]
-                        # units = param.units
-                        # if units == "":
-                        #     param = param[units]
-                        # else:
-                        #     param = param[units] * G[units]
-                    #except AttributeError:
-                        #pass
                     except KeyError:
                         if (units == "dBm" or
                             units == "deg" or
