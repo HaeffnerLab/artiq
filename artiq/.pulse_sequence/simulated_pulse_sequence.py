@@ -16,11 +16,16 @@ import sys
 
 logger = logging.getLogger(__name__)
 
+def unitless(param):
+    if isinstance(param, WithUnit):
+        param = param.inBaseUnits()
+        param = param[param.units]
+    return param
+
 #
 # Entry point to trigger a simulation of a particular experiment
 #
 def run_simulation(file_path, class_, argument_values):
-
     # define a function to import a modified source file
     def modify_and_import(module_name, path, modification_func):
         # adapted from https://stackoverflow.com/questions/41858147/how-to-modify-imported-source-code-on-the-fly
@@ -101,19 +106,16 @@ class SimulatedDDS:
             self.time_switched_on = None
 
     def set(self, freq, amplitude=None, phase=None, ref_time_mu=None):
-        if isinstance(freq, WithUnit):
-            freq = freq['Hz']
-
-        self.freq = freq
+        self.freq = float(unitless(freq))
         if amplitude:
-            self.amplitude = amplitude
+            self.amplitude = float(unitless(amplitude))
         if phase:
-            self.phase = phase
+            self.phase = float(unitless(phase))
         if ref_time_mu:
-            self.ref_time_mu = ref_time_mu
+            self.ref_time_mu = float(unitless(ref_time_mu))
 
     def set_att(self, att):
-        self.att = att
+        self.att = float(unitless(att))
 
 class _FakeCore:
     def seconds_to_mu(self, time):
@@ -140,9 +142,11 @@ class PulseSequence:
         self.simulated_pulses = None
         self.core = _FakeCore()
         self.data = edict()
-        self.grapher = None
         self.scheduler = SimulationScheduler()
         self.rcg_tabs = dict()
+        
+        self.grapher = None
+        self.visualizer = None
 
         self.sequence_name = type(self).__name__
         self.rcg_tabs[self.sequence_name] = dict()
@@ -217,7 +221,7 @@ class PulseSequence:
 
     def simulate(self):
         self.load_parameters()
-        self.setup_grapher()
+        self.setup_rpc_connections()
         self.setup_carriers()
         self.setup_dds()
         
@@ -264,6 +268,10 @@ class PulseSequence:
                 current_sequence = getattr(self, scan_name)
                 current_sequence()
 
+                # Visualize the pulse sequences.
+                if self.visualizer:
+                    self.visualizer.plot_simulated_pulses(self.simulated_pulses)
+
                 # Write the generated pulse sequences to a file.
                 filename = self.timestamp + "_pulses_" + str(scan_idx) + ".txt"
                 with open(filename, "w") as pulses_file:
@@ -308,13 +316,32 @@ class PulseSequence:
             logger.error("FitError encountered in run_finally", exc_info=True)
             raise
 
-    def setup_grapher(self):
+        if self.grapher:
+            try:
+                self.grapher.close_rpc()
+            except:
+                pass
+        if self.visualizer:
+            try:
+                self.visualizer.close_rpc()
+            except:
+                pass
+
+    def setup_rpc_connections(self):
         if not self.grapher:
             try:
                 self.grapher = Client("::1", 3286, "rcg")
             except:
                 logger.warning("Failed to connect to RCG grapher", exc_info=True)
                 self.grapher = None
+        if not self.visualizer:
+            try:
+                #TODO - this causes the GUI to hang!
+                #self.visualizer = Client("::1", 3289, "pulse_sequence_visualizer")
+                pass
+            except:
+                logger.warning("Failed to connect to pulse sequence visualizer", exc_info=True)
+                self.visualizer = None
 
     def setup_carriers(self):
         self.carrier_names = [
@@ -334,8 +361,7 @@ class PulseSequence:
         _list = [0.] * 10
 
         for carrier, frequency in current_lines:
-            frequency = frequency.inBaseUnits()
-            abs_freq = frequency[frequency.units]
+            abs_freq = unitless(frequency)
             for i in range(10):
                 if carrier == self.carrier_names[i]:
                     _list[i] = abs_freq
@@ -346,9 +372,7 @@ class PulseSequence:
         freq = 0.
         for i in range(len(self.trap_frequency_names)):
             if self.trap_frequency_names[i] == name:
-                freq = self.trap_frequency_values[i]
-                if isinstance(freq, WithUnit):
-                    freq = freq['Hz']
+                freq = unitless(self.trap_frequency_values[i])
                 return freq
         return 0.
 
@@ -378,9 +402,7 @@ class PulseSequence:
                 pass
 
             def _take_time(self, duration):
-                if isinstance(duration, WithUnit):
-                    duration = duration['s']
-                self.time += duration
+                self.time += unitless(duration)
 
             def _get_time(self):
                 return self.time
@@ -574,16 +596,7 @@ class PulseSequence:
             names = p.get_parameter_names(collection)
             for name in names:
                 try:
-                    param = p.get_parameter([collection, name])
-                    try:
-                        if isinstance(param, WithUnit):
-                            param = param.inBaseUnits()
-                            param = param[param.units]
-                    except KeyError:
-                        if (units == "dBm" or
-                            units == "deg" or
-                            units == ""):
-                            param = param[units]
+                    param = unitless(p.get_parameter([collection, name]))
                     d[name] = param
                     setattr(self, collection + "_" + name, param)
                 except:

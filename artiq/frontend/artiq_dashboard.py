@@ -22,6 +22,7 @@ from artiq.dashboard.laser_room.laser_room_tab import LaserRoomTab
 #from artiq.dashboard.temp_controller.temp_controller_tab import TempControllerTab
 from artiq.dashboard.drift_tracker.drift_tracker import DriftTracker
 from artiq.dashboard.readout_histograms.readout_histograms import ReadoutHistograms
+from artiq.dashboard.pulse_sequence.pulse_sequence_tab import PulseSequenceTab
 import labrad
 from lattice.clients.connection import connection
 from twisted.internet.defer import inlineCallbacks
@@ -275,6 +276,9 @@ def main():
     drift_tracker_tab = DriftTracker(laser_room_acxn)
     smgr.register(drift_tracker_tab)
     tabs.addTab(drift_tracker_tab, "Drift Tracker")
+    pulse_sequence_tab = PulseSequenceTab()
+    smgr.register(pulse_sequence_tab)
+    tabs.addTab(pulse_sequence_tab, "Pulse Sequence")
 
     smgr.load()
     smgr.start()
