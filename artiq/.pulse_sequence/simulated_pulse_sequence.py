@@ -24,6 +24,11 @@ def unitless(param):
 # Entry point to trigger a simulation of a particular experiment
 #
 def run_simulation(file_path, class_, argument_values):
+    # for development convenience, always reload the latest simulated_pulse_sequence.py
+    sim_mod_name = "simulated_pulse_sequence"
+    if sim_mod_name in sys.modules:
+        importlib.reload(sys.modules[sim_mod_name])
+
     # define a function to import a modified source file
     def modify_and_import(module_name, path, modification_func):
         # adapted from https://stackoverflow.com/questions/41858147/how-to-modify-imported-source-code-on-the-fly
@@ -155,8 +160,6 @@ class PulseSequence:
                                 datetime.now().strftime("%Y-%m-%d"), self.sequence_name)
         os.makedirs(self.dir, exist_ok=True)
         os.chdir(self.dir)
-
-        self.logger.info("Simulation timestamp " + self.timestamp + ", output files saved to " + self.dir)
 
     def set_submission_arguments(self, submission_arguments):
         self.submission_arguments = submission_arguments
@@ -314,6 +317,8 @@ class PulseSequence:
         except FitError:
             self.logger.error("FitError encountered in run_finally", exc_info=True)
             raise
+        
+        self.logger.info(self.sequence_name + " complete! Timestamp " + self.timestamp + ", output files saved to " + self.dir)
 
         if self.grapher:
             try:
