@@ -10,14 +10,15 @@ from PyQt5 import QtCore, QtWidgets, QtGui
 import time
 
 logger = logging.getLogger(__name__)
+simulation_logger = logging.getLogger("** SIMULATION **")
         
 class PulseSequenceVisualizerServer:
     def __init__(self, psv):
         self.psv = psv
 
     def plot_simulated_pulses(self, simulated_pulses):
-        logger.info("Plotting " + str(simulated_pulses))
         # TODO: plot the given data using self.psv.on_new_seq()
+        pass
 
 class PulseSequenceVisualizer(QtWidgets.QDockWidget):
     def __init__(self):
@@ -37,7 +38,10 @@ class PulseSequenceVisualizer(QtWidgets.QDockWidget):
 
     def connect_asyncio_server(self):
         self.loop = asyncio.get_event_loop()
-        self.asyncio_server = Server({"pulse_sequence_visualizer": PulseSequenceVisualizerServer(self)}, None, True)
+        self.asyncio_server = Server({
+            "pulse_sequence_visualizer": PulseSequenceVisualizerServer(self),
+            "simulation_logger": simulation_logger
+            }, None, True)
         self.task = self.loop.create_task(self.asyncio_server.start("::1", 3289))
     
     def create_layout(self):

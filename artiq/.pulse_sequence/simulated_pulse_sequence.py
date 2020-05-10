@@ -14,8 +14,6 @@ import os
 import traceback
 import sys
 
-logger = logging.getLogger(__name__)
-
 def unitless(param):
     if isinstance(param, WithUnit):
         param = param.inBaseUnits()
@@ -51,7 +49,7 @@ def run_simulation(file_path, class_, argument_values):
                     modify_and_import(module_name, experiment_file_full_path, lambda src:
                         src.replace("@kernel", ""))
                 except:
-                    logger.error(traceback.print_exc())
+                    self.logger.error(traceback.print_exc())
                     continue
 
     # load the experiment source and make the necessary modifications
@@ -147,6 +145,8 @@ class PulseSequence:
         
         self.grapher = None
         self.visualizer = None
+        self.logger = None
+        self.setup_rpc_connections()
 
         self.sequence_name = type(self).__name__
         self.rcg_tabs[self.sequence_name] = dict()
@@ -156,7 +156,7 @@ class PulseSequence:
         os.makedirs(self.dir, exist_ok=True)
         os.chdir(self.dir)
 
-        logger.info("Simulation timestamp " + self.timestamp + ", output files saved to " + self.dir)
+        self.logger.info("Simulation timestamp " + self.timestamp + ", output files saved to " + self.dir)
 
     def set_submission_arguments(self, submission_arguments):
         self.submission_arguments = submission_arguments
@@ -164,7 +164,7 @@ class PulseSequence:
     def write_line(self, output_file, line):
         # writes a line to both the file and the logger (if uncommented)
         output_file.write(line + "\n")
-        #logger.info(line)
+        #self.logger.info(line)
 
     def load_parameters(self):
         if not self.p:
@@ -199,7 +199,7 @@ class PulseSequence:
         filename = self.timestamp + "_params_" + scan_name + ".txt"
         with open(filename, "w") as param_file:
             self.write_line(param_file, str(self.parameter_dict))
-        print("** SIMULATION ** parameters written to " + os.path.join(self.dir, filename))
+        print("Parameters written to " + os.path.join(self.dir, filename))
 
     def report_pulse(self, dds, time_switched_on, time_switched_off):
         simulated_pulse = {
@@ -221,7 +221,6 @@ class PulseSequence:
 
     def simulate(self):
         self.load_parameters()
-        self.setup_rpc_connections()
         self.setup_carriers()
         self.setup_dds()
         
@@ -276,10 +275,10 @@ class PulseSequence:
                 filename = self.timestamp + "_pulses_" + str(scan_idx) + ".txt"
                 with open(filename, "w") as pulses_file:
                     self.write_line(pulses_file, str(self.simulated_pulses))
-                print("** SIMULATION ** pulse sequence written to " + os.path.join(self.dir, filename))
+                print("Pulse sequence written to " + os.path.join(self.dir, filename))
                 
                 # Call IonSim code to simulate the dynamics.
-                print("** SIMULATION ** Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_parameter_name + "=" + str(scan_point))
+                print("Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_parameter_name + "=" + str(scan_point))
                 result_data = self.simulate_with_ion_sim()
                 
                 # Record and plot the result.
@@ -301,19 +300,19 @@ class PulseSequence:
             filename = self.timestamp + "_results.txt"
             with open(filename, "w") as results_file:
                 self.write_line(results_file, str(self.data[scan_name]))
-            print("** SIMULATION ** results written to " + os.path.join(self.dir, filename))
+            print("Results written to " + os.path.join(self.dir, filename))
             
             if scan_name in self.run_after:
                 try:
                     self.run_after[scan_name]()
                 except FitError:
-                    logger.error("FitError encountered in run_after for " + scan_name, exc_info=True)
+                    self.logger.error("FitError encountered in run_after for " + scan_name, exc_info=True)
                     raise
 
         try:
             self.run_finally()
         except FitError:
-            logger.error("FitError encountered in run_finally", exc_info=True)
+            self.logger.error("FitError encountered in run_finally", exc_info=True)
             raise
 
         if self.grapher:
@@ -326,21 +325,32 @@ class PulseSequence:
                 self.visualizer.close_rpc()
             except:
                 pass
+        if self.logger:
+            try:
+                self.logger.close_rpc()
+            except:
+                pass
 
     def setup_rpc_connections(self):
+        try:
+            self.logger = Client("::1", 3289, "simulation_logger")
+        except:
+            self.logger = logging.getLogger("** SIMULATION **")
+            self.logger.warning("Failed to connect to remote logger", exc_info=True)
+
         if not self.grapher:
             try:
                 self.grapher = Client("::1", 3286, "rcg")
             except:
-                logger.warning("Failed to connect to RCG grapher", exc_info=True)
+                self.logger.warning("Failed to connect to RCG grapher", exc_info=True)
                 self.grapher = None
+
         if not self.visualizer:
             try:
-                #TODO - this causes the GUI to hang!
-                #self.visualizer = Client("::1", 3289, "pulse_sequence_visualizer")
+                self.visualizer = Client("::1", 3289, "pulse_sequence_visualizer")
                 pass
             except:
-                logger.warning("Failed to connect to pulse sequence visualizer", exc_info=True)
+                self.logger.warning("Failed to connect to pulse sequence visualizer", exc_info=True)
                 self.visualizer = None
 
     def setup_carriers(self):

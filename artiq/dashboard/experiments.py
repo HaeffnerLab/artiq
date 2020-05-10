@@ -487,8 +487,11 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
             sim_mod_name = "simulated_pulse_sequence"
             if sim_mod_name in sys.modules:
                 importlib.reload(sys.modules[sim_mod_name])
+
+            from multiprocessing import Process
             import simulated_pulse_sequence
-            simulated_pulse_sequence.run_simulation(file_path, class_, argument_values)
+            process = Process(target=simulated_pulse_sequence.run_simulation, args=(file_path, class_, argument_values))
+            process.start()
 
         except:
             # May happen when experiment has been removed
