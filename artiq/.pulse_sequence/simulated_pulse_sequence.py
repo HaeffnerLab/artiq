@@ -304,7 +304,8 @@ class PulseSequence:
             # Visualize the most recent pulse sequence.
             if self.visualizer:
                 try:
-                    self.visualizer.plot_simulated_pulses(self.make_human_readable_dds(), ttl={}, channels={})
+                    dds, ttl, channels = self.make_human_readable_pulses()
+                    self.visualizer.plot_simulated_pulses(dds, ttl, channels)
                 except:
                     self.logger.warning("Failed to plot pulse sequence visualization:" + traceback.format_exc(), exc_info=True)
             
@@ -339,10 +340,40 @@ class PulseSequence:
             except:
                 pass
 
-    def make_human_readable_dds(self):
-        # Converts self.simulated_pulses into a "human readable DDS" format expected
+    def make_human_readable_pulses(self):
+        # Converts self.simulated_pulses into the "human readable" format expected
         # by the pulse sequence visualizer GUI.
-        return self.simulated_pulses
+        # Returns a tuple: (dds, ttl, channels)
+        times = set()
+        dds_names = set()
+        for simulated_pulse in self.simulated_pulses:
+            dds_names.add(simulated_pulse["dds_name"])
+            times.add(simulated_pulse["time_on"])
+            times.add(simulated_pulse["time_off"])
+        dds_names = sorted(dds_names)
+        times = sorted(times)
+        times = times + [times[-1]*1.01] + [times[-1]*1.02]
+
+        raw_channels = [["AdvanceDDS", 0]] + [["unused" + str(i), i] for i in range(1, 32)]
+        raw_ttl = [[time, [1] + [0] * 31] for time in times]
+
+        def freq_and_amp(dds_name, time):
+            freq = 0.0
+            amp = 0.0
+            for simulated_pulse in self.simulated_pulses:
+                if dds_name == simulated_pulse["dds_name"] and time >= simulated_pulse["time_on"] and time <= simulated_pulse["time_off"]:
+                    freq = simulated_pulse["freq"] / 1e6
+                    amp = simulated_pulse["amp"] * (10 ** (-simulated_pulse["att"] / 20))
+                    break
+            return freq, amp
+
+        raw_dds = []
+        for time in times[:-1]:
+            for dds_name in dds_names:
+                freq, amp = freq_and_amp(dds_name, time)
+                raw_dds.append([dds_name, freq, amp])
+
+        return raw_dds, raw_ttl, raw_channels
 
     def setup_rpc_connections(self):
         try:

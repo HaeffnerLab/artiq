@@ -108,7 +108,7 @@ class SequenceAnalyzer():
         self.ttl_channels = [key for key in self.ttl_dict.keys() if key is not 'times']
         self.dds_channels = [key for key in self.dds_dict.keys() if key is not 'times']
 
-        self.DdsBoxes = []
+        self.dds_boxes = []
 
 
     def _make_ttl_dict(self):
@@ -202,7 +202,7 @@ class SequenceAnalyzer():
     def create_dds_plot(self, channel, axes, offset, scale=1.0):
         """Makes a plot of DDS state vs. time for a given channel, on a given set of matplotlib axes, with some offset and scale.
         Height corresponds to amplitude, and color of the fill_between corresponds to frequency.
-        For each DDS pulse in this channel, a DdsBox class instance is also created. This is added to the present sequence_analyzer's list of all DdsBox objects, self.DdsBoxes, for later use by the pulse sequence visualizer."""
+        For each DDS pulse in this channel, a DdsBox class instance is also created. This is added to the present sequence_analyzer's list of all DdsBox objects, self.dds_boxes, for later use by the pulse sequence visualizer."""
         times = self.dds_dict['times']
 
         # Create a list of all other DDS channels which correspond to the same laser.
@@ -233,7 +233,7 @@ class SequenceAnalyzer():
             i_next = change_indices[i_ch+1]
             if amps_normlzd[i_curr]:
                 box = axes.fill_between([1e3*times[i_curr], 1e3*times[i_next]], [offset, offset], [offset+scale*amps_normlzd[i_curr], offset+scale*amps_normlzd[i_curr]], facecolor=cmap(freqs_normlzd[i_curr]))
-                self.DdsBoxes.append(DdsBox(box, self, channel, i_curr, i_next, offset, scale))
+                self.dds_boxes.append(DdsBox(box, self, channel, i_curr, i_next, offset, scale))
 
 
     def get_dds_freqs_ampls(self, channel):
