@@ -16,9 +16,12 @@ class PulseSequenceVisualizerServer:
     def __init__(self, psv):
         self.psv = psv
 
-    def plot_simulated_pulses(self, simulated_pulses):
-        # TODO: plot the given data using self.psv.on_new_seq()
-        pass
+    def plot_simulated_pulses(self, dds, ttl, channels):
+        try:
+            self.psv.on_new_seq(dds, ttl, channels, signal_time=time.localtime())
+        except:
+            logger.warning("Failed to plot pulse sequence visualization", exc_info=True)
+            raise
 
 class PulseSequenceVisualizer(QtWidgets.QDockWidget):
     def __init__(self):
@@ -81,11 +84,11 @@ class PulseSequenceVisualizer(QtWidgets.QDockWidget):
         if self.mpl_connection:
             self.canvas.mpl_disconnect(self.mpl_connection)
         self.last_seq_data = {'DDS':dds, 'TTL':ttl, 'channels':channels}
-        # Create sequence_analyzer object instance
-        self.sequence = sequence_analyzer(ttl, dds, channels)
+        # Create SequenceAnalyzer object instance
+        self.sequence = SequenceAnalyzer(ttl, dds, channels)
         # Clear the plot of all drawn objects
         self.clear_plot()
-        # Call the sequence_analyzer object's create_full_plot method to draw the plot on the GUI's axes.
+        # Call the SequenceAnalyzer object's create_full_plot method to draw the plot on the GUI's axes.
         self.sequence.create_full_plot(self.axes)
         self.axes.set_title('Most Recent Pulse Sequence, ' + time.strftime('%Y-%m-%d %H:%M:%S', signal_time))
         # Draw and reconnect to mouse hover events

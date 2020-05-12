@@ -54,7 +54,7 @@ def run_simulation(file_path, class_, argument_values):
                     modify_and_import(module_name, experiment_file_full_path, lambda src:
                         src.replace("@kernel", ""))
                 except:
-                    self.logger.error(traceback.print_exc())
+                    self.logger.error(traceback.format_exc())
                     continue
 
     # load the experiment source and make the necessary modifications
@@ -270,10 +270,6 @@ class PulseSequence:
                 current_sequence = getattr(self, scan_name)
                 current_sequence()
 
-                # Visualize the pulse sequences.
-                if self.visualizer:
-                    self.visualizer.plot_simulated_pulses(self.simulated_pulses)
-
                 # Write the generated pulse sequences to a file.
                 filename = self.timestamp + "_pulses_" + str(scan_idx) + ".txt"
                 with open(filename, "w") as pulses_file:
@@ -305,6 +301,13 @@ class PulseSequence:
                 self.write_line(results_file, str(self.data[scan_name]))
             print("Results written to " + os.path.join(self.dir, filename))
             
+            # Visualize the most recent pulse sequence.
+            if self.visualizer:
+                try:
+                    self.visualizer.plot_simulated_pulses(self.make_human_readable_dds(), ttl={}, channels={})
+                except:
+                    self.logger.warning("Failed to plot pulse sequence visualization:" + traceback.format_exc(), exc_info=True)
+            
             if scan_name in self.run_after:
                 try:
                     self.run_after[scan_name]()
@@ -335,6 +338,11 @@ class PulseSequence:
                 self.logger.close_rpc()
             except:
                 pass
+
+    def make_human_readable_dds(self):
+        # Converts self.simulated_pulses into a "human readable DDS" format expected
+        # by the pulse sequence visualizer GUI.
+        return self.simulated_pulses
 
     def setup_rpc_connections(self):
         try:
