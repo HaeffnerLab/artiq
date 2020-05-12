@@ -121,7 +121,7 @@ class PulseSequenceVisualizer(QtWidgets.QDockWidget):
         drawx = 1e3*(dds_box.starttime() + dds_box.duration()/2.0)
         drawy = dds_box.offset + dds_box.scale/2.0
         self.annot.xy = (drawx, drawy)
-        text = '{0}\nStart: {1}\nDuration: {2}\n{3:.4f} MHz\n{4:.2f} dBm'.format(dds_box.channel,
+        text = '{0}\nStart: {1}\nDuration: {2}\n{3:.4f} MHz\n{4:.2f} amp w/att'.format(dds_box.channel,
                                                                                 self.format_starttime(dds_box.starttime()),
                                                                                 self.format_duration(dds_box.duration()),
                                                                                 dds_box.frequency(),
