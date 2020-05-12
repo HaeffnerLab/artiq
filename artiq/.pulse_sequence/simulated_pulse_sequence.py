@@ -361,7 +361,7 @@ class PulseSequence:
             freq = 0.0
             amp = 0.0
             for simulated_pulse in self.simulated_pulses:
-                if dds_name == simulated_pulse["dds_name"] and time >= simulated_pulse["time_on"] and time <= simulated_pulse["time_off"]:
+                if dds_name == simulated_pulse["dds_name"] and time > simulated_pulse["time_on"] and time <= simulated_pulse["time_off"]:
                     freq = simulated_pulse["freq"] / 1e6
                     amp = simulated_pulse["amp"] * (10 ** (-simulated_pulse["att"] / 20))
                     break
