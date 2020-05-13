@@ -170,6 +170,7 @@ class SequenceAnalyzer():
         dds_dict['times'] = dds_times
 
         # Organize the raw info in raw_dds into the dictionary dds_dict
+        channels_to_delete = []
         for setting in self.raw_dds:
             channel_name = setting[0]
             if not channel_name in dds_dict:
@@ -180,12 +181,15 @@ class SequenceAnalyzer():
             if channel_name is not 'times':
                 #Exclude unused channels
                 if not np.any(dds_dict[channel_name][0]) or len(set(dds_dict[channel_name][1]))<=1:
-                    del dds_dict[channel_name]
+                    channels_to_delete.append(channel_name)
                 else:
                     dds_dict[channel_name][0].extend([dds_dict[channel_name][0][-1]])
                     dds_dict[channel_name][1].extend([dds_dict[channel_name][1][-1]])
                     assert len(dds_dict[channel_name][0]) == len(dds_dict['times']), 'Number of frequencies for channel {} does not match number of times.'.format(channel_name)
                     assert len(dds_dict[channel_name][1]) == len(dds_dict['times']), 'Number of amplitudes for channel {} does not match number of times.'.format(channel_name)
+
+        for channel_name in channels_to_delete:
+            del dds_dict[channel_name]
 
         return dds_dict
 
