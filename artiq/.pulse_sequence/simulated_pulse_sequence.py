@@ -54,7 +54,7 @@ def run_simulation(file_path, class_, argument_values):
                     modify_and_import(module_name, experiment_file_full_path, lambda src:
                         src.replace("@kernel", ""))
                 except:
-                    self.logger.error(traceback.format_exc())
+                    self.logger.error("Error importing subsequence " + filename_without_extension + ": " + traceback.format_exc())
                     continue
 
     # load the experiment source and make the necessary modifications
@@ -65,9 +65,12 @@ def run_simulation(file_path, class_, argument_values):
         .replace("@kernel", ""))
 
     # execute the simulated pulse sequence
-    pulse_sequence = getattr(mod, class_)()
-    pulse_sequence.set_submission_arguments(argument_values)
-    pulse_sequence.simulate()
+    try:
+        pulse_sequence = getattr(mod, class_)()
+        pulse_sequence.set_submission_arguments(argument_values)
+        pulse_sequence.simulate()
+    except:
+        self.logger.error("Error simulating pulse sequence" + traceback.format_exc())
 
 class SimulatedDDSSwitch:
     def __init__(self, dds):
@@ -217,10 +220,13 @@ class PulseSequence:
         self.simulated_pulses.append(simulated_pulse)
 
     def simulate_with_ion_sim(self):
-        path_to_simulate_jl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "simulate.jl")
-        from julia import Main
-        Main.include(path_to_simulate_jl)
-        return Main.simulate_with_ion_sim(self.parameter_dict, self.simulated_pulses, self.num_ions)
+        try:
+            path_to_simulate_jl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "simulate.jl")
+            from julia import Main
+            Main.include(path_to_simulate_jl)
+            return Main.simulate_with_ion_sim(self.parameter_dict, self.simulated_pulses, self.num_ions)
+        except:
+            self.logger.error("Error running IonSim simulation: " + traceback.format_exc())
 
     def simulate(self):
         self.load_parameters()
