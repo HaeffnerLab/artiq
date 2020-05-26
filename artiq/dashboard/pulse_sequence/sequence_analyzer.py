@@ -96,8 +96,8 @@ class SequenceAnalyzer():
     """
     def __init__(self, human_readable_ttl, human_readable_dds, channels):
         self.raw_ttl = human_readable_ttl
-        print(self.raw_ttl)
-        print(len(self.raw_ttl[0][1]))
+        #print(self.raw_ttl)
+        #print(len(self.raw_ttl[0][1]))
 
         self.raw_dds = human_readable_dds
         self.raw_channels = channels
@@ -128,12 +128,12 @@ class SequenceAnalyzer():
 
         # Create list of channels, ordered by the channel number
         channel_list = [None]*32
-        print(self.raw_channels)
-        print('channel_list length:', len(channel_list))
+        #print(self.raw_channels)
+        #print('channel_list length:', len(channel_list))
         for channel in self.raw_channels:
-            print(channel[1])
+            #print(channel[1])
             channel_list[channel[1]] = channel[0]
-        print(channel_list)
+        #print(channel_list)
 
         # Organize the raw info in raw_ttl into the dictionary ttl_dict
         ttl_array_full = np.array([[int(channel_setting) for channel_setting in time[1]] for time in self.raw_ttl[:-1]])
@@ -142,7 +142,7 @@ class SequenceAnalyzer():
             if np.any(ttl_array_full[:, i]):
                 ttl_dict[channel] = ttl_array_full[:, i]
 
-        print(ttl_dict)
+        #print(ttl_dict)
         return ttl_dict
 
 
