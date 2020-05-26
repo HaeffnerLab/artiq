@@ -14,6 +14,8 @@ import os
 import traceback
 import sys
 
+logger = logging.getLogger(__name__)
+
 def unitless(param):
     if isinstance(param, WithUnit):
         param = param.inBaseUnits()
@@ -24,53 +26,72 @@ def unitless(param):
 # Entry point to trigger a simulation of a particular experiment
 #
 def run_simulation(file_path, class_, argument_values):
-    # for development convenience, always reload the latest simulated_pulse_sequence.py
-    sim_mod_name = "simulated_pulse_sequence"
-    if sim_mod_name in sys.modules:
-        importlib.reload(sys.modules[sim_mod_name])
-
-    # define a function to import a modified source file
-    def modify_and_import(module_name, path, modification_func):
-        # adapted from https://stackoverflow.com/questions/41858147/how-to-modify-imported-source-code-on-the-fly
-        loader = importlib.machinery.SourceFileLoader(module_name, path)
-        source = loader.get_source(module_name)
-        new_source = modification_func(source)
-        spec = importlib.util.spec_from_loader(loader.name, loader)
-        module = importlib.util.module_from_spec(spec)
-        codeobj = compile(new_source, module.__spec__.origin, 'exec')
-        exec(codeobj, module.__dict__)
-        sys.modules[module_name] = module
-        return module
-
-    # import all of the subsequences and strip out the @kernel decorators
-    subsequences_folder = os.path.join(os.path.expanduser("~"), "artiq-work", "subsequences")
-    for path, subdirs, files in os.walk(subsequences_folder):
-        for filename in files:
-            filename_without_extension, extension = os.path.splitext(filename)
-            if extension == ".py":
-                try:
-                    module_name = "simulated_subsequences." + filename_without_extension
-                    experiment_file_full_path = os.path.join(path, filename)
-                    modify_and_import(module_name, experiment_file_full_path, lambda src:
-                        src.replace("@kernel", ""))
-                except:
-                    self.logger.error("Error importing subsequence " + filename_without_extension + ": " + traceback.format_exc())
-                    continue
-
-    # load the experiment source and make the necessary modifications
-    file_path = os.path.join(os.path.expanduser("~"), "artiq-work", file_path)
-    mod = modify_and_import(class_, file_path, lambda src: 
-        src.replace("from pulse_sequence", "from simulated_pulse_sequence")
-        .replace("from subsequences.", "from simulated_subsequences.")
-        .replace("@kernel", ""))
-
-    # execute the simulated pulse sequence
     try:
+        # for development convenience, always reload the latest simulated_pulse_sequence.py
+        sim_mod_name = "simulated_pulse_sequence"
+        if sim_mod_name in sys.modules:
+            importlib.reload(sys.modules[sim_mod_name])
+
+        # define a function to import a modified source file
+        def modify_and_import(module_name, path, modification_func):
+            # adapted from https://stackoverflow.com/questions/41858147/how-to-modify-imported-source-code-on-the-fly
+            loader = importlib.machinery.SourceFileLoader(module_name, path)
+            source = loader.get_source(module_name)
+            new_source = modification_func(source)
+            spec = importlib.util.spec_from_loader(loader.name, loader)
+            module = importlib.util.module_from_spec(spec)
+            codeobj = compile(new_source, module.__spec__.origin, 'exec')
+            exec(codeobj, module.__dict__)
+            sys.modules[module_name] = module
+            return module
+
+        # import all of the subsequences and strip out the @kernel decorators
+        subsequences_folder = os.path.join(os.path.expanduser("~"), "artiq-work", "subsequences")
+        for path, subdirs, files in os.walk(subsequences_folder):
+            for filename in files:
+                filename_without_extension, extension = os.path.splitext(filename)
+                if extension == ".py":
+                    try:
+                        module_name = "simulated_subsequences." + filename_without_extension
+                        experiment_file_full_path = os.path.join(path, filename)
+                        modify_and_import(module_name, experiment_file_full_path, lambda src:
+                            src.replace("@kernel", ""))
+                    except:
+                        logger.error("Error importing subsequence " + filename_without_extension + ": " + traceback.format_exc())
+                        continue
+
+        # import all of the auto calibration sequences and strip out the @kernel decorators
+        auto_calibration_sequences_folder = os.path.join(os.path.expanduser("~"), "artiq-work", "auto_calibration", "sequences")
+        for path, subdirs, files in os.walk(auto_calibration_sequences_folder):
+            for filename in files:
+                filename_without_extension, extension = os.path.splitext(filename)
+                if extension == ".py":
+                    try:
+                        module_name = "auto_calibration.simulated_sequences." + filename_without_extension
+                        experiment_file_full_path = os.path.join(path, filename)
+                        modify_and_import(module_name, experiment_file_full_path, lambda src:
+                            src.replace("from pulse_sequence", "from simulated_pulse_sequence")
+                            .replace("from subsequences.", "from simulated_subsequences.")
+                            .replace("from auto_calibration.sequences.", "from auto_calibration.simulated_sequences.")
+                            .replace("@kernel", ""))
+                    except:
+                        logger.error("Error importing auto calibration sequence " + filename_without_extension + ": " + traceback.format_exc())
+                        continue
+
+        # load the experiment source and make the necessary modifications
+        file_path = os.path.join(os.path.expanduser("~"), "artiq-work", file_path)
+        mod = modify_and_import(class_, file_path, lambda src: 
+            src.replace("from pulse_sequence", "from simulated_pulse_sequence")
+            .replace("from subsequences.", "from simulated_subsequences.")
+            .replace("from auto_calibration.sequences.", "from auto_calibration.simulated_sequences.")
+            .replace("@kernel", ""))
+
+        # execute the simulated pulse sequence
         pulse_sequence = getattr(mod, class_)()
         pulse_sequence.set_submission_arguments(argument_values)
         pulse_sequence.simulate()
     except:
-        self.logger.error("Error simulating pulse sequence" + traceback.format_exc())
+        logger.error("Error simulating pulse sequence" + traceback.format_exc())
 
 class SimulatedDDSSwitch:
     def __init__(self, dds):

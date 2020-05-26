@@ -34,7 +34,7 @@ class _RepoScanner:
                 logger.warning("Character '/' is not allowed in experiment "
                                "name (%s)", name)
                 name = name.replace("/", "_")
-            if name == "PulseSequence":
+            if name in ["PulseSequence", "AutoCalibrationSequence"]:
                 continue
             if name in entry_dict:
                 basename = name
