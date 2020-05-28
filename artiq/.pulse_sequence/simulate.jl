@@ -1,6 +1,6 @@
 using IonSim
 
-function simulate_with_ion_sim(parameters, pulses, num_ions, line_center, b_field)
+function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
     # This function must return a dictionary of result values.
     # Typically, this dictionary will represent the probability
     #    of each possible readout state, and so each value will

@@ -245,13 +245,11 @@ class PulseSequence:
             path_to_simulate_jl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "simulate.jl")
             from julia import Main
             Main.include(path_to_simulate_jl)
-            self.logger.info(self.current_line_center)
             self.logger.info(self.current_b_field)
             return Main.simulate_with_ion_sim(
                 self.parameter_dict,
                 self.simulated_pulses,
                 self.num_ions,
-                self.current_line_center,
                 self.current_b_field)
         except:
             self.logger.error("Error running IonSim simulation: " + traceback.format_exc())
@@ -444,17 +442,18 @@ class PulseSequence:
                                     tls_mode="off")
         sd_tracker = global_cxn.sd_tracker_global
 
+        current_line_center = float(unitless(sd_tracker.get_current_center_local(dt_config.client_name)))
         current_lines = sd_tracker.get_current_lines(dt_config.client_name)
         _list = [0.] * 10
         for carrier, frequency in current_lines:
             abs_freq = unitless(frequency)
             for i in range(10):
                 if carrier == self.carrier_names[i]:
-                    _list[i] = abs_freq
+                    # for simulation, express carrier frequencies relative to line center
+                    _list[i] = abs_freq - current_line_center
                     break
         self.carrier_values = _list
 
-        self.current_line_center = float(unitless(sd_tracker.get_current_center_local(dt_config.client_name)))
         self.current_b_field = float(unitless(sd_tracker.get_current_b_local(dt_config.client_name)['gauss']))
 
     def get_trap_frequency(self, name):
