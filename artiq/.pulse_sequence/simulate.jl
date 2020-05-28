@@ -1,6 +1,6 @@
 using IonSim
 
-function simulate_with_ion_sim(parameters, pulses, num_ions)
+function simulate_with_ion_sim(parameters, pulses, num_ions, line_center, b_field)
     # This function must return a dictionary of result values.
     # Typically, this dictionary will represent the probability
     #    of each possible readout state, and so each value will
@@ -14,7 +14,7 @@ function simulate_with_ion_sim(parameters, pulses, num_ions)
 
     ions = []
     for i = 1:num_ions
-        push!(ions, ca40(selected_level_structure=["S-1/2", "D-1/2"]))
+        push!(ions, ca40())
     end
 
     # TODO: If necessary, read parameters here. For example:
