@@ -305,7 +305,7 @@ class PulseSequence:
                 # Write the generated pulse sequences to a file.
                 filename = self.timestamp + "_pulses_" + str(scan_idx) + ".txt"
                 with open(filename, "w") as pulses_file:
-                    self.write_line(pulses_file, str(self.simulated_pulses))
+                    self.write_line(pulses_file, json.dumps(self.simulated_pulses, sort_keys=True, indent=4))
                 print("Pulse sequence written to " + os.path.join(self.dir, filename))
                 
                 # Call IonSim code to simulate the dynamics.
