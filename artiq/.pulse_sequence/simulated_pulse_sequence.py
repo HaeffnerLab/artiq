@@ -442,7 +442,7 @@ class PulseSequence:
                                     tls_mode="off")
         sd_tracker = global_cxn.sd_tracker_global
 
-        current_line_center = float(unitless(sd_tracker.get_current_center_local(dt_config.client_name)))
+        current_line_center = float(unitless(sd_tracker.get_current_center(dt_config.client_name)))
         current_lines = sd_tracker.get_current_lines(dt_config.client_name)
         _list = [0.] * 10
         for carrier, frequency in current_lines:
