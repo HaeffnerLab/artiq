@@ -245,7 +245,6 @@ class PulseSequence:
             path_to_simulate_jl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "simulate.jl")
             from julia import Main
             Main.include(path_to_simulate_jl)
-            self.logger.info(self.current_b_field)
             return Main.simulate_with_ion_sim(
                 self.parameter_dict,
                 self.simulated_pulses,
