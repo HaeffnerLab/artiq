@@ -530,9 +530,9 @@ class PulseSequence:
         values = (std * np.random.randn(n) + mean).tolist()
         for i in range(len(values)):
             # make sure the values are between min and max
-            if min:
+            if min is not None:
                 values[i] = max(min, amps[i])
-            if max:
+            if max is not None:
                 values[i] = min(max, amps[i])
         return values
 
