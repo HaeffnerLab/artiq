@@ -134,11 +134,11 @@ class SimulatedDDS:
 
     def set(self, freq, amplitude=None, phase=None, ref_time_mu=None):
         self.freq = float(unitless(freq))
-        if amplitude:
+        if amplitude is not None:
             self.amplitude = float(unitless(amplitude))
-        if phase:
+        if phase is not None:
             self.phase = float(unitless(phase))
-        if ref_time_mu:
+        if ref_time_mu is not None:
             self.ref_time_mu = float(unitless(ref_time_mu))
 
     def set_att(self, att):
