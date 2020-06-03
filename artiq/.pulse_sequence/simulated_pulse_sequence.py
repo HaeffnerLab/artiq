@@ -178,6 +178,7 @@ class PulseSequence:
         self.setup_rpc_connections()
 
         self.sequence_name = type(self).__name__
+        self.frequency_scan_sequence_names = ["Spectrum", "CalibAllLines", "CalibSideband"]
         self.rcg_tabs[self.sequence_name] = dict()
         self.timestamp = datetime.now().strftime("%H%M_%S")
         self.dir = os.path.join(os.path.expanduser("~"), "data", "simulation",
@@ -295,6 +296,10 @@ class PulseSequence:
                 setattr(self, variable_param_name, scan_point)
                 self.parameter_dict[self.scan_parameter_name] = scan_point
 
+                # Set the current x value for plotting. May be overwritten inside a pulse sequence.
+                self.current_x_value = scan_point
+
+                # Initialize the sequence by calling set_subsequence.
                 self.set_subsequence[scan_name]()
 
                 # Run the pulse sequence function to generate the pulse sequence.
@@ -311,15 +316,17 @@ class PulseSequence:
                 print("Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_parameter_name + "=" + str(scan_point))
                 result_data = self.simulate_with_ion_sim()
                 
-                # Record and plot the result.
-                range_guess = (scan_points[0], scan_points[-1])
-                print(scan_name)
-                if self.sequence_name in ["Spectrum", "CalibAllLines", "CalibSideband"]:
-                    print(self.current_line_center)
-                    scan_point = (scan_point + self.current_line_center) * 1e-6
-                    range_guess = ((scan_points[0] + self.current_line_center) * 1e-6, (scan_points[-1] + self.current_line_center) * 1e-6)
+                # Guess the plot range.
+                range_offset = self.current_x_value - scan_point
+                range_guess = (scan_points[0] + range_offset, scan_points[-1] + range_offset)
+                
+                # Adjustment for absolute frequency scans, which should be displayed in MHz.
+                if self.sequence_name in self.frequency_scan_sequence_names:
+                    self.current_x_value = self.current_x_value * 1e-6
+                    range_guess = (range_guess[0] * 1e-6, range_guess[1] * 1e-6)
                     
-                x_data = np.append(x_data, scan_point)
+                # Record and plot the result.
+                x_data = np.append(x_data, self.current_x_value)
                 for result_name, result_value in result_data.items():
                     if not result_name in y_data:
                         y_data[result_name] = np.array([], dtype=float)
@@ -657,7 +664,6 @@ class PulseSequence:
 
     def calc_frequency(self, line, detuning=0.,
                     sideband="", order=0., dds="", bound_param=""):
-        relative_display = self.Display_relative_frequencies
         freq = detuning
         abs_freq = 0.
         line_set = False
@@ -673,6 +679,11 @@ class PulseSequence:
             if line_set and sideband_set:
                 abs_freq = freq
                 break
+
+        # Plot absolute frequencies for frequency scans.
+        if self.sequence_name in self.frequency_scan_sequence_names:
+            self.current_x_value = abs_freq + self.current_line_center
+
         return freq
 
     def get_variable_parameter(self, name):
