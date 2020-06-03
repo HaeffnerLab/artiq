@@ -312,6 +312,13 @@ class PulseSequence:
                 result_data = self.simulate_with_ion_sim()
                 
                 # Record and plot the result.
+                range_guess = (scan_points[0], scan_points[-1])
+                print(scan_name)
+                if self.sequence_name in ["Spectrum", "CalibAllLines", "CalibSideband"]:
+                    print(self.current_line_center)
+                    scan_point = (scan_point + self.current_line_center) * 1e-6
+                    range_guess = ((scan_points[0] + self.current_line_center) * 1e-6, (scan_points[-1] + self.current_line_center) * 1e-6)
+                    
                 x_data = np.append(x_data, scan_point)
                 for result_name, result_value in result_data.items():
                     if not result_name in y_data:
@@ -321,7 +328,7 @@ class PulseSequence:
                         plot_title = self.timestamp + " - " + scan_name + " - state:" + result_name
                         self.grapher.plot(x_data, y_data[result_name], tab_name="IonSim",
                             plot_title=plot_title, append=True,
-                            file_="", range_guess=(scan_points[0], scan_points[-1]))
+                            file_="", range_guess=range_guess)
         
             # Add the results to self.data and output to file.
             self.data[scan_name]["x"] = x_data
@@ -441,7 +448,7 @@ class PulseSequence:
                                     tls_mode="off")
         sd_tracker = global_cxn.sd_tracker_global
 
-        current_line_center = float(unitless(sd_tracker.get_current_center(dt_config.client_name)))
+        self.current_line_center = float(unitless(sd_tracker.get_current_center(dt_config.client_name)))
         current_lines = sd_tracker.get_current_lines(dt_config.client_name)
         _list = [0.] * 10
         for carrier, frequency in current_lines:
@@ -449,7 +456,7 @@ class PulseSequence:
             for i in range(10):
                 if carrier == self.carrier_names[i]:
                     # for simulation, express carrier frequencies relative to line center
-                    _list[i] = abs_freq - current_line_center
+                    _list[i] = abs_freq - self.current_line_center
                     break
         self.carrier_values = _list
 
