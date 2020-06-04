@@ -263,6 +263,7 @@ class PulseSequence:
 
         self.num_ions = int(self.p.IonsOnCamera.ion_number)
         
+        run_initially_complete = False
         for scan_name in PulseSequence.scan_params:
             self.data[scan_name] = edict(x=[], y=[])
             x_data = np.array([], dtype=float)
@@ -280,8 +281,9 @@ class PulseSequence:
             self.write_parameters_for_scan(scan_name)
 
             # Call run_initially, but only if this is the first scan.
-            if scan_name == list(PulseSequence.scan_params.keys())[0]:
+            if not run_initially_complete:
                 self.run_initially()
+                run_initially_complete = True
             
             # Determine the list of scan points.
             variable_param_name = self.scan_parameter_name.replace(".", "_")
