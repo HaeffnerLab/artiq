@@ -307,7 +307,7 @@ class PulseSequence:
                 current_sequence()
 
                 # Write the generated pulse sequences to a file.
-                filename = self.timestamp + "_pulses_" + str(scan_idx) + ".txt"
+                filename = self.timestamp + "_pulses_" + scan_name + "_" + str(scan_idx) + ".txt"
                 with open(filename, "w") as pulses_file:
                     self.write_line(pulses_file, json.dumps(self.simulated_pulses, sort_keys=True, indent=4))
                 print("Pulse sequence written to " + os.path.join(self.dir, filename))
@@ -341,7 +341,7 @@ class PulseSequence:
             self.data[scan_name]["x"] = x_data
             for y_name, y_data in y_data.items():
                 self.data[scan_name]["y"].append(y_data)
-            filename = self.timestamp + "_results.txt"
+            filename = self.timestamp + "_results_" + scan_name + ".txt"
             with open(filename, "w") as results_file:
                 self.write_line(results_file, str(self.data[scan_name]))
             print("Results written to " + os.path.join(self.dir, filename))
