@@ -269,7 +269,10 @@ class PulseSequence:
             y_data = {}
             
             # Look up the settings for the current scan.
-            self.scan_parameter_name = self.submission_arguments[scan_name + "-Scan_Selection"]
+            scan_selection = scan_name + "-Scan_Selection"
+            if not scan_selection in self.submission_arguments:
+                continue
+            self.scan_parameter_name = self.submission_arguments[scan_selection]
             self.scan_settings = self.submission_arguments[scan_name + ":" + self.scan_parameter_name]
             self.selected_scan[scan_name] = self.scan_parameter_name
             
