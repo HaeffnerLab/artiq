@@ -338,7 +338,7 @@ class PulseSequence:
                     y_data[result_name] = np.append(y_data[result_name], result_value)
                     if self.grapher:
                         plot_title = self.timestamp + " - " + scan_name + " - state:" + result_name
-                        self.grapher.plot(x_data, y_data[result_name], tab_name="IonSim",
+                        self.grapher.plot(x_data, y_data[result_name], tab_name=PulseSequence.scan_params[scan_name][0][0],
                             plot_title=plot_title, append=True,
                             file_="", range_guess=range_guess)
         

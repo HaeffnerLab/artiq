@@ -61,7 +61,6 @@ tab_configs = [
     ("DriftTrackerRamsey", [graphConfig(name="DriftTrackerRamsey1", title="DriftTrackerRamsey1"),
                             graphConfig(name="DriftTrackerRamsey2", title="DriftTrackerRamsey2", col=1)]),
     ("Benchmarking", [graphConfig(name="Benchmarking", ylims=[0, 1])]),
-    ("IonSim", [graphConfig(name="IonSim", ylims=[0, 1])])
 ]
 
 
