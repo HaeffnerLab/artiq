@@ -152,6 +152,9 @@ class SimulationScheduler:
     def submit(self, scheduler_name, expid, priority=None):
         run_simulation(expid["file"], expid["class_name"], expid["arguments"])
 
+    def get_status(self):
+        return dict()
+
 class FitError(Exception):
     pass
 
