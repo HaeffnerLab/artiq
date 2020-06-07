@@ -183,7 +183,8 @@ class PulseSequence:
         self.sequence_name = type(self).__name__
         self.frequency_scan_sequence_names = ["Spectrum", "CalibAllLines", "CalibSideband"]
         self.rcg_tabs[self.sequence_name] = dict()
-        self.timestamp = datetime.now().strftime("%H%M_%S")
+        self.start_time = datetime.now()
+        self.timestamp = self.start_time.strftime("%H%M_%S")
         self.dir = os.path.join(os.path.expanduser("~"), "data", "simulation",
                                 datetime.now().strftime("%Y-%m-%d"), self.sequence_name)
         os.makedirs(self.dir, exist_ok=True)
