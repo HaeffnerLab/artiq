@@ -333,16 +333,15 @@ class PulseSequence:
                 if self.sequence_name in self.frequency_scan_sequence_names:
                     self.current_x_value = self.current_x_value * 1e-6
                     range_guess = (range_guess[0] * 1e-6, range_guess[1] * 1e-6)
-                    
+
                 # Record and plot the result.
                 x_data = np.append(x_data, self.current_x_value)
-                for result_name, result_value in result_data.items():
-                    if not result_name in y_data:
-                        y_data[result_name] = np.array([], dtype=float)
-                    y_data[result_name] = np.append(y_data[result_name], result_value)
-                    if self.grapher:
-                        plot_title = self.timestamp + " - " + scan_name + " - state:" + result_name
-                        self.grapher.plot(x_data, y_data[result_name], tab_name=PulseSequence.scan_params[scan_name][0][0],
+                self.perform_state_readout(result_data, y_data)
+                if self.grapher:
+                    for curve_name, curve_values in sorted(y_data.items()):
+                        plot_title = self.timestamp + " - " + scan_name + " - " + curve_name
+                        self.grapher.plot(x_data, curve_values,
+                            tab_name=PulseSequence.scan_params[scan_name][0][0],
                             plot_title=plot_title, append=True,
                             file_="", range_guess=range_guess)
         
@@ -393,6 +392,47 @@ class PulseSequence:
                 self.logger.close_rpc()
             except:
                 pass
+
+    def perform_state_readout(self, result_data, y_data):
+        # Takes the data points contained in result_data and appends them
+        # to the accumulated data stored in y_data, taking into account the
+        # setting of the StateReadout.readout_mode parameter. 
+        def ensure_curve_exists(y_data, curve_name):
+            if not curve_name in y_data:
+                y_data[curve_name] = np.array([], dtype=float)
+        readout_mode = self.parameter_dict["StateReadout.readout_mode"]
+        if readout_mode in ["pmt", "pmtMLE", "pmt_parity", "pmt_states"]:
+            # Curves are named num_dark:1, num_dark:2, ..., num_dark:self.num_ions
+            for num_dark in range(1, self.num_ions + 1):
+                curve_name = "num_dark:" + str(num_dark)
+                ensure_curve_exists(y_data, curve_name)
+                y_value = np.sum([result_value for result_name, result_value in result_data.items() if result_name.count('D') == num_dark])
+                y_data[curve_name] = np.append(y_data[curve_name], y_value)
+            if readout_mode == "pmt_parity":
+                # TODO: Add parity curve (pmt_parity is not currently implemented)
+                pass
+            elif readout_mode == "pmt_states":
+                # TODO: Add states (pmt_states is not currently implemented)
+                pass
+        elif readout_mode in ["camera"]:
+            # Curves are named dark_ion:0, dark_ion:1, ...
+            for ion_idx in range(self.num_ions):
+                curve_name = "dark_ion:" + str(ion_idx)
+                ensure_curve_exists(y_data, curve_name)
+                y_value = np.sum([result_value for result_name, result_value in result_data.items() if result_name[ion_idx] == 'D'])
+                y_data[curve_name] = np.append(y_data[curve_name], y_value)
+        elif readout_mode in ["camera_states", "camera_parity"]:
+            # Curves are named state:SS, state:SD, etc.
+            for result_name, result_value in result_data.items():
+                curve_name = "state:" + str(result_name)
+                ensure_curve_exists(y_data, curve_name)
+                y_data[curve_name] = np.append(y_data[curve_name], result_value)
+            if readout_mode == "camera_parity":
+                # Add parity curve
+                curve_name = "parity"
+                ensure_curve_exists(y_data, curve_name)
+                y_value = np.sum([y_value * (-1)**curve_name.count('D') for curve_name, y_value in result_data.items()])
+                y_data[curve_name] = np.append(y_data[curve_name], y_value)
 
     def make_human_readable_pulses(self):
         # Converts self.simulated_pulses into the "human readable" format expected
