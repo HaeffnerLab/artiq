@@ -141,6 +141,9 @@ class SimulatedDDS:
         if ref_time_mu is not None:
             self.ref_time_mu = float(unitless(ref_time_mu))
 
+    def set_amplitude(self, amplitude):
+        self.amplitude = float(unitless(amplitude))
+
     def set_att(self, att):
         self.att = float(unitless(att))
 
@@ -263,13 +266,16 @@ class PulseSequence:
             if pulse["dds_name"].startswith("SP_"):
                 pulse["processed"] = True
                 for other_pulse in self.simulated_pulses:
-                    if other_pulse["dds_name"] == pulse["dds_name"][3:]:
+                    # pulse is a single-pass, e.g. SP_729G or SP_729G_bichro
+                    # looking for other_pulse to be the double-pass 729G
+                    laser_name = pulse["dds_name"][3:]
+                    if laser_name.startswith(other_pulse["dds_name"]):
                         other_pulse["processed"] = True
                         combined_time_on = max(pulse["time_on"], other_pulse["time_on"])
                         combined_time_off = min(pulse["time_off"], other_pulse["time_off"])
                         if combined_time_on < combined_time_off:
                             new_pulse = {
-                                "dds_name": other_pulse["dds_name"],
+                                "dds_name": laser_name,
                                 "time_on": combined_time_on,
                                 "time_off": combined_time_off,
                                 "freq": pulse["freq"] + other_pulse["freq"] - 80e6,
