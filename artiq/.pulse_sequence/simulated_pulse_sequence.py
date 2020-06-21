@@ -247,16 +247,14 @@ class PulseSequence:
 
     def simulate_with_ion_sim(self):
         try:
-            path_to_simulate_jl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "simulate.jl")
-            from julia import Main
-            Main.include(path_to_simulate_jl)
-            return Main.simulate_with_ion_sim(
+            return self.julia_simulation_function(
                 self.parameter_dict,
                 self.simulated_pulses,
                 self.num_ions,
                 self.current_b_field)
         except:
             self.logger.error("Error running IonSim simulation: " + traceback.format_exc())
+            raise
 
     def simulate(self):
         self.load_parameters()
@@ -266,6 +264,16 @@ class PulseSequence:
         self.N = int(self.p.StateReadout.repeat_each_measurement)
 
         self.num_ions = int(self.p.IonsOnCamera.ion_number)
+
+        # Import the Julia simulation function
+        try:
+            path_to_simulate_jl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "simulate.jl")
+            from julia import Main
+            Main.include(path_to_simulate_jl)
+            self.julia_simulation_function = Main.simulate_with_ion_sim
+        except:
+            self.logger.error("Error loading Julia file simulate.jl: " + traceback.format_exc())
+            raise
         
         run_initially_complete = False
         for scan_name in PulseSequence.scan_params:
