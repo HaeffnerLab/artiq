@@ -245,11 +245,47 @@ class PulseSequence:
         }
         self.simulated_pulses.append(simulated_pulse)
 
+    def combine_laser_pulses(self):
+        # First, post-process the simulated_pulses to combine pulses that belong
+        # to the same laser tone, e.g. 729G and SP_729G or SP_729G_bichro
+        
+        # for each pulse with dds_name == SP_foo
+            # for each overlapping pulse with dds_name == foo
+                # create a new pulse with dds_name == foo
+                    # amp: product
+                    # att: sum
+                    # freq: sum - 80*MHz
+                    # phase: sum
+                    # time_off: min
+                    # time_on: max
+        self.combined_laser_pulses = []
+        for pulse in self.simulated_pulses:
+            if pulse["dds_name"].startswith("SP_"):
+                pulse["processed"] = True
+                for other_pulse in self.simulated_pulses:
+                    if other_pulse["dds_name"] == pulse["dds_name"][3:]:
+                        other_pulse["processed"] = True
+                        combined_time_on = max(pulse["time_on"], other_pulse["time_on"])
+                        combined_time_off = min(pulse["time_off"], other_pulse["time_off"])
+                        if combined_time_on < combined_time_off:
+                            new_pulse = {
+                                "dds_name": other_pulse["dds_name"],
+                                "time_on": combined_time_on,
+                                "time_off": combined_time_off,
+                                "freq": pulse["freq"] + other_pulse["freq"] - 80e6,
+                                "amp": pulse["amp"] * other_pulse["amp"],
+                                "att": pulse["att"] + other_pulse["att"],
+                                "phase": pulse["phase"] + other_pulse["phase"],
+                            }
+                            self.combined_laser_pulses.append(new_pulse)
+
+        self.combined_laser_pulses.extend([pulse for pulse in self.simulated_pulses if "processed" not in pulse])
+
     def simulate_with_ion_sim(self):
         try:
             return self.julia_simulation_function(
                 self.parameter_dict,
-                self.simulated_pulses,
+                self.combined_laser_pulses,
                 self.num_ions,
                 self.current_b_field)
         except:
@@ -328,6 +364,14 @@ class PulseSequence:
                 with open(filename, "w") as pulses_file:
                     self.write_line(pulses_file, json.dumps(self.simulated_pulses, sort_keys=True, indent=4))
                 print("Pulse sequence written to " + os.path.join(self.dir, filename))
+
+                # Post-process the pulses to combine single-pass and double-pass pulses
+                # into laser pulses, and also write these to a file.
+                self.combine_laser_pulses()
+                filename = self.timestamp + "_lasers_" + scan_name + "_" + str(scan_idx) + ".txt"
+                with open(filename, "w") as lasers_file:
+                    self.write_line(lasers_file, json.dumps(self.combined_laser_pulses, sort_keys=True, indent=4))
+                print("Laser sequence written to " + os.path.join(self.dir, filename))
                 
                 # Call IonSim code to simulate the dynamics.
                 print("Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_parameter_name + "=" + str(scan_point))
