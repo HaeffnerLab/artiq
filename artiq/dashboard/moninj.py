@@ -405,8 +405,9 @@ class _DeviceManager:
                 await new_core_connection.connect(addr, 1383)
             except:
                 logger.error("failed to connect to core device moninj", exc_info=True)
-                await asyncio.sleep(10.)
-                self.reconnect_core.set()
+                # Don't retry connection when running locally
+                #await asyncio.sleep(10.)
+                #self.reconnect_core.set()
             else:
                 self.core_connection = new_core_connection
                 for ttl_channel in self.ttl_widgets.keys():
