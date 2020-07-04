@@ -115,8 +115,8 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
         for pulse_index in 1:length(pulses)
             if lasers[laser_index].label == string(pulse_index)
                 pulse = pulses[pulse_index]
-                sum += pulse["phase"] * heaviside(t, pulse["time_on"] - simulation_start_time)
-                sum -= pulse["phase"] * heaviside(t, pulse["time_off"] - simulation_start_time)
+                sum += 2π * pulse["phase"] * heaviside(t, pulse["time_on"] - simulation_start_time)
+                sum -= 2π * pulse["phase"] * heaviside(t, pulse["time_off"] - simulation_start_time)
             end
         end
         return sum
