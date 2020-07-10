@@ -2,6 +2,7 @@ using IonSim
 using QuantumOptics
 using DifferentialEquations
 using Distributions
+using DataStructures
 
 function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
     #############################################
@@ -76,8 +77,8 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
 
     #############################################
     # Helpful functions
-    function heaviside(t, t0)
-        0.5 * (sign(t-t0) + 1)
+    function step_interval(t, t_begin, t_end)
+        t >= t_begin && t < t_end ? 1 : 0
     end
 
     function project(solution, states...)
@@ -96,9 +97,7 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
                 pi_min = 3e-6
                 t_pi = pi_min * sqrt(intensity_factor / (pulse["amp"] * 10^(-1.5 * pulse["att"] / 10)))
                 E = Efield_from_pi_time(t_pi, ion_trap, laser_index, 1, ("S-1/2", "D-1/2"))
-
-                sum += E * heaviside(t, pulse["time_on"] - simulation_start_time)
-                sum -= E * heaviside(t, pulse["time_off"] - simulation_start_time)
+                sum += E * step_interval(t, pulse["time_on"] - simulation_start_time, pulse["time_off"] - simulation_start_time)
             end
         end
         return sum
@@ -115,8 +114,7 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
         for pulse_index in 1:length(pulses)
             if lasers[laser_index].label == string(pulse_index)
                 pulse = pulses[pulse_index]
-                sum += 2π * pulse["phase"] * heaviside(t, pulse["time_on"] - simulation_start_time)
-                sum -= 2π * pulse["phase"] * heaviside(t, pulse["time_off"] - simulation_start_time)
+                sum += 2π * pulse["phase"] * step_interval(t, pulse["time_on"] - simulation_start_time, pulse["time_off"] - simulation_start_time)
             end
         end
         return sum
@@ -137,14 +135,13 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
         initial_state = ion_state(ion_trap, "S-1/2", "S-1/2", "S-1/2")
     end
 
-    simulation_tstops = []
+    simulation_tstops = SortedSet{Float64}()
     for laser in lasers
         pulse = pulses[parse(Int, laser.label)]
-        append!(simulation_tstops, [
-            pulse["time_on"] - simulation_start_time,
-            pulse["time_off"] - simulation_start_time,
-            ])
+        push!(simulation_tstops, pulse["time_on"] - simulation_start_time)
+        push!(simulation_tstops, pulse["time_off"] - simulation_start_time)
     end
+    simulation_tstops = collect(simulation_tstops)
     println("Calculated pulse start/stop times as $simulation_tstops")
 
     h = hamiltonian(ion_trap, timescale=1, rwa_cutoff=1e5) #lamb_dicke_order=1)
@@ -157,30 +154,30 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
     #############################################
     # Measure the expectation values
     result = undef
-    s_states = ["S-1/2", "S+1/2"]
-    d_states = ["D-5/2", "D-3/2", "D-1/2" ,"D+1/2", "D+3/2", "D+5/2"]
+    S = ["S-1/2", "S+1/2"]
+    D = ["D-5/2", "D-3/2", "D-1/2" ,"D+1/2", "D+3/2", "D+5/2"]
     if length(ions) == 1
         result = Dict(
-            "S" => sum([project(solution, state) for state=s_states]),
-            "D" => sum([project(solution, state) for state=d_states]),
+            "S" => sum([project(solution, state) for state=S]),
+            "D" => sum([project(solution, state) for state=D]),
             )
     elseif length(ions) == 2
         result = Dict(
-            "SS" => sum([project(solution, state1, state2) for state1=s_states, state2=s_states]),
-            "SD" => sum([project(solution, state1, state2) for state1=s_states, state2=d_states]),
-            "DS" => sum([project(solution, state1, state2) for state1=d_states, state2=s_states]),
-            "DD" => sum([project(solution, state1, state2) for state1=d_states, state2=d_states]),
+            "SS" => sum([project(solution, state1, state2) for state1=S, state2=S]),
+            "SD" => sum([project(solution, state1, state2) for state1=S, state2=D]),
+            "DS" => sum([project(solution, state1, state2) for state1=D, state2=S]),
+            "DD" => sum([project(solution, state1, state2) for state1=D, state2=D]),
             )
     elseif length(ions) == 3
         result = Dict(
-            "SSS" => sum([project(solution, state1, state2, state3) for state1=s_states, state2=s_states, state3=s_states]),
-            "SSD" => sum([project(solution, state1, state2, state3) for state1=s_states, state2=s_states, state3=d_states]),
-            "SDS" => sum([project(solution, state1, state2, state3) for state1=s_states, state2=d_states, state3=s_states]),
-            "SDD" => sum([project(solution, state1, state2, state3) for state1=s_states, state2=d_states, state3=d_states]),
-            "DSS" => sum([project(solution, state1, state2, state3) for state1=d_states, state2=s_states, state3=s_states]),
-            "DSD" => sum([project(solution, state1, state2, state3) for state1=d_states, state2=s_states, state3=d_states]),
-            "DDS" => sum([project(solution, state1, state2, state3) for state1=d_states, state2=d_states, state3=s_states]),
-            "DDD" => sum([project(solution, state1, state2, state3) for state1=d_states, state2=d_states, state3=d_states]),
+            "SSS" => sum([project(solution, state1, state2, state3) for state1=S, state2=S, state3=S]),
+            "SSD" => sum([project(solution, state1, state2, state3) for state1=S, state2=S, state3=D]),
+            "SDS" => sum([project(solution, state1, state2, state3) for state1=S, state2=D, state3=S]),
+            "SDD" => sum([project(solution, state1, state2, state3) for state1=S, state2=D, state3=D]),
+            "DSS" => sum([project(solution, state1, state2, state3) for state1=D, state2=S, state3=S]),
+            "DSD" => sum([project(solution, state1, state2, state3) for state1=D, state2=S, state3=D]),
+            "DDS" => sum([project(solution, state1, state2, state3) for state1=D, state2=D, state3=S]),
+            "DDD" => sum([project(solution, state1, state2, state3) for state1=D, state2=D, state3=D]),
             )
     end
     
