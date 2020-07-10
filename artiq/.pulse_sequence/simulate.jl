@@ -70,7 +70,7 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
         simulation_stop_time = 0
     end
     simulation_total_time = simulation_stop_time - simulation_start_time
-    simulation_tspan = range(-1e-9, simulation_total_time, length=2)
+    simulation_tspan = range(-1e-9, simulation_total_time + 1e-9, length=2)
     
     println("Total simulation time is $(simulation_total_time*1e6) μs")
     println("(start time = $(simulation_start_time*1e6) μs, stop time = $(simulation_stop_time*1e6) μs)")
@@ -82,25 +82,19 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
     end
 
     function project(solution, states...)
-        real.(expect(ion_projector(ion_trap, states...), solution))[2]
+        real.(expect(ion_projector(ion_trap, states...), solution))
     end
 
     #############################################
     # Set up the time-dependent E-field
     function Ω(t, laser_index)
-        sum = 0
-        for pulse_index in 1:length(pulses)
-            if lasers[laser_index].label == string(pulse_index)
-                pulse = pulses[pulse_index]
-
-                intensity_factor = 10^(-0.5) # this corresponds to pi time 3 μs
-                pi_min = 3e-6
-                t_pi = pi_min * sqrt(intensity_factor / (pulse["amp"] * 10^(-1.5 * pulse["att"] / 10)))
-                E = Efield_from_pi_time(t_pi, ion_trap, laser_index, 1, ("S-1/2", "D-1/2"))
-                sum += E * step_interval(t, pulse["time_on"] - simulation_start_time, pulse["time_off"] - simulation_start_time)
-            end
-        end
-        return sum
+        pulse = pulses[parse(Int, lasers[laser_index].label)]
+        interval = step_interval(t, pulse["time_on"] - simulation_start_time, pulse["time_off"] - simulation_start_time)
+        intensity_factor = 10^(-0.5) # this corresponds to pi time 3 μs
+        pi_min = 3e-6
+        t_pi = pi_min * sqrt(intensity_factor / (pulse["amp"] * 10^(-1.5 * pulse["att"] / 10)))
+        E = Efield_from_pi_time(t_pi, ion_trap, laser_index, 1, ("S-1/2", "D-1/2"))
+        return E * interval
     end
     
     for laser_index in 1:length(lasers)
@@ -110,14 +104,9 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
     #############################################
     # Set up the time-dependent phase
     function ϕ(t, laser_index)
-        sum = 0
-        for pulse_index in 1:length(pulses)
-            if lasers[laser_index].label == string(pulse_index)
-                pulse = pulses[pulse_index]
-                sum += 2π * pulse["phase"] * step_interval(t, pulse["time_on"] - simulation_start_time, pulse["time_off"] - simulation_start_time)
-            end
-        end
-        return sum
+        pulse = pulses[parse(Int, lasers[laser_index].label)]
+        interval = step_interval(t, pulse["time_on"] - simulation_start_time, pulse["time_off"] - simulation_start_time)
+        return 2π * pulse["phase"] * interval
     end
     
     for laser_index in 1:length(lasers)
@@ -144,12 +133,13 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
     simulation_tstops = collect(simulation_tstops)
     println("Calculated pulse start/stop times as $simulation_tstops")
 
-    h = hamiltonian(ion_trap, timescale=1, rwa_cutoff=1e5) #lamb_dicke_order=1)
+    h = hamiltonian(ion_trap, timescale=1, rwa_cutoff=1e5)
     @time tout, solution = timeevolution.schroedinger_dynamic(
         simulation_tspan,
         initial_state ⊗ fockstate(mode.basis, 0),
         h,
-        callback=PresetTimeCallback(simulation_tstops, integrator -> return));
+        callback=PresetTimeCallback(simulation_tstops, filter_tstops=false, integrator -> return));
+    solution = solution[end]
 
     #############################################
     # Measure the expectation values
