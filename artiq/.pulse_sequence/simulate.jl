@@ -87,30 +87,24 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
 
     #############################################
     # Set up the time-dependent E-field
-    function Ω(t, laser_index)
+    intensity_factor = 10^(-0.5) # this corresponds to pi time 3 μs
+    pi_min = 3e-6    
+    for laser_index in 1:length(lasers)
         pulse = pulses[parse(Int, lasers[laser_index].label)]
-        interval = step_interval(t, pulse["time_on"] - simulation_start_time, pulse["time_off"] - simulation_start_time)
-        intensity_factor = 10^(-0.5) # this corresponds to pi time 3 μs
-        pi_min = 3e-6
         t_pi = pi_min * sqrt(intensity_factor / (pulse["amp"] * 10^(-1.5 * pulse["att"] / 10)))
         E = Efield_from_pi_time(t_pi, ion_trap, laser_index, 1, ("S-1/2", "D-1/2"))
-        return E * interval
-    end
-    
-    for laser_index in 1:length(lasers)
-        lasers[laser_index].E = t -> Ω(t, laser_index)
+        lasers[laser_index].E = let pulse=deepcopy(pulse), E=deepcopy(E)
+            t -> E * step_interval(t, pulse["time_on"] - simulation_start_time, pulse["time_off"] - simulation_start_time)
+        end
     end
 
     #############################################
-    # Set up the time-dependent phase
-    function ϕ(t, laser_index)
-        pulse = pulses[parse(Int, lasers[laser_index].label)]
-        interval = step_interval(t, pulse["time_on"] - simulation_start_time, pulse["time_off"] - simulation_start_time)
-        return 2π * pulse["phase"] * interval
-    end
-    
+    # Set up the time-dependent phase    
     for laser_index in 1:length(lasers)
-        lasers[laser_index].ϕ = t -> ϕ(t, laser_index)
+        pulse = pulses[parse(Int, lasers[laser_index].label)]
+        lasers[laser_index].ϕ = let pulse=deepcopy(pulse)
+            t -> 2π * pulse["phase"] * step_interval(t, pulse["time_on"] - simulation_start_time, pulse["time_off"] - simulation_start_time)
+        end
     end
     
     #############################################
