@@ -19,49 +19,53 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
 
     #############################################
     # Create and load the ions
-    ions = Array{ca40}(undef, num_ions)
+    ions = Array{Ca40}(undef, num_ions)
     for i = 1:num_ions
-        ions[i] = ca40()
+        ions[i] = Ca40()
     end
     
     axial_frequency = parameters["TrapFrequencies.axial_frequency"]
     radial_frequency_1 = parameters["TrapFrequencies.radial_frequency_1"]
     radial_frequency_2 = parameters["TrapFrequencies.radial_frequency_2"]
-    chain = linearchain(
+    chain = LinearChain(
         ions=ions,
         com_frequencies=(x=radial_frequency_1, y=radial_frequency_2, z=axial_frequency),
-        selected_modes=(x=[], y=[], z=[1]))
+        vibrational_modes=(;z=[1]))
 
     #############################################
     # Set up the lasers and the trap
-    laser_pulses = []
+    laser_pulses = Dict()
     for pulse_index in 1:length(pulses)
         pulse = pulses[pulse_index]
         if occursin("729G", pulse["dds_name"])
-            push!(laser_pulses, laser(
-                label=string(pulse_index),
+            laser = Laser(
                 k=(x̂ + ẑ)/√2,
                 ϵ=(x̂ - ẑ)/√2,
                 Δ=pulse["freq"],
-            ))
+            )
+            laser_pulses[laser] = pulse
         end
         # TODO: Add 729L1 and 729L2
     end
 
-    lasers = Array{laser}(undef, length(laser_pulses))
-    for i in 1:length(laser_pulses)
-        lasers[i] = laser_pulses[i]
+    lasers = Array{Laser}(undef, length(laser_pulses))
+    for (i, (laser, pulse)) in enumerate(laser_pulses)
+        lasers[i] = laser
     end
 
-    ion_trap = trap(configuration=chain, B=b_field*1e-4, Bhat=ẑ, δB=0, lasers=lasers)
-    mode = ion_trap.configuration.vibrational_modes.z[1]
+    trap = Trap(configuration=chain, B=b_field*1e-4, Bhat=ẑ, δB=0, lasers=lasers)
+    mode = trap.configuration.vibrational_modes.z[1]
+
+    for laser in lasers
+        global_beam!(trap, laser)
+    end
     
     #############################################
     # Determine the simulation time when the relevant lasers are on
     simulation_start_time = Inf
     simulation_stop_time = 0
     for laser in lasers
-        pulse = pulses[parse(Int, laser.label)]
+        pulse = laser_pulses[laser]
         simulation_start_time = min(simulation_start_time, pulse["time_on"])
         simulation_stop_time = max(simulation_stop_time, pulse["time_off"])
     end
@@ -70,7 +74,7 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
         simulation_stop_time = 0
     end
     simulation_total_time = simulation_stop_time - simulation_start_time
-    simulation_tspan = range(-1e-9, simulation_total_time + 1e-9, length=2)
+    simulation_tspan = range(simulation_start_time - 1e-9, simulation_stop_time + 1e-9, length=2)
     
     println("Total simulation time is $(simulation_total_time*1e6) μs")
     println("(start time = $(simulation_start_time*1e6) μs, stop time = $(simulation_stop_time*1e6) μs)")
@@ -81,29 +85,33 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
         t >= t_begin && t < t_end ? 1 : 0
     end
 
+    function step_pulse(t, pulse)
+        step_interval(t, pulse["time_on"], pulse["time_off"])
+    end
+
     function project(solution, states...)
-        real.(expect(ion_projector(ion_trap, states...), solution))
+        real.(expect(ionprojector(trap, states...), solution))
     end
 
     #############################################
     # Set up the time-dependent E-field
     intensity_factor = 10^(-0.5) # this corresponds to pi time 3 μs
-    pi_min = 3e-6    
-    for laser_index in 1:length(lasers)
-        pulse = pulses[parse(Int, lasers[laser_index].label)]
+    pi_min = 3e-6
+    for laser in lasers
+        pulse = laser_pulses[laser]
         t_pi = pi_min * sqrt(intensity_factor / (pulse["amp"] * 10^(-1.5 * pulse["att"] / 10)))
-        E = Efield_from_pi_time(t_pi, ion_trap, laser_index, 1, ("S-1/2", "D-1/2"))
-        lasers[laser_index].E = let pulse=deepcopy(pulse), E=deepcopy(E)
-            t -> E * step_interval(t, pulse["time_on"] - simulation_start_time, pulse["time_off"] - simulation_start_time)
+        E = Efield_from_pi_time(t_pi, trap.Bhat, laser, ions[1], ("S-1/2", "D-1/2"))
+        laser.E = let pulse=deepcopy(pulse), E=deepcopy(E)
+            t -> E * step_pulse(t, pulse)
         end
     end
 
     #############################################
-    # Set up the time-dependent phase    
-    for laser_index in 1:length(lasers)
-        pulse = pulses[parse(Int, lasers[laser_index].label)]
-        lasers[laser_index].ϕ = let pulse=deepcopy(pulse)
-            t -> 2π * pulse["phase"] * step_interval(t, pulse["time_on"] - simulation_start_time, pulse["time_off"] - simulation_start_time)
+    # Set up the time-dependent phase
+    for laser in lasers
+        pulse = laser_pulses[laser]
+        laser.ϕ = let pulse=deepcopy(pulse)
+            t -> 2π * pulse["phase"]
         end
     end
     
@@ -111,28 +119,28 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
     # Run the simulation
     initial_state = undef
     if length(ions) == 1
-        initial_state = ion_state(ion_trap, "S-1/2")
+        initial_state = ionstate(trap, "S-1/2")
     elseif length(ions) == 2
-        initial_state = ion_state(ion_trap, "S-1/2", "S-1/2")
+        initial_state = ionstate(trap, "S-1/2", "S-1/2")
     elseif length(ions) == 3
-        initial_state = ion_state(ion_trap, "S-1/2", "S-1/2", "S-1/2")
+        initial_state = ionstate(trap, "S-1/2", "S-1/2", "S-1/2")
     end
 
     simulation_tstops = SortedSet{Float64}()
     for laser in lasers
-        pulse = pulses[parse(Int, laser.label)]
-        push!(simulation_tstops, pulse["time_on"] - simulation_start_time)
-        push!(simulation_tstops, pulse["time_off"] - simulation_start_time)
+        pulse = laser_pulses[laser]
+        push!(simulation_tstops, pulse["time_on"])
+        push!(simulation_tstops, pulse["time_off"])
     end
     simulation_tstops = collect(simulation_tstops)
     println("Calculated pulse start/stop times as $simulation_tstops")
 
-    h = hamiltonian(ion_trap, timescale=1, rwa_cutoff=1e5)
+    h = hamiltonian(trap, timescale=1, rwa_cutoff=1e5)
     @time tout, solution = timeevolution.schroedinger_dynamic(
         simulation_tspan,
-        initial_state ⊗ fockstate(mode.basis, 0),
+        initial_state ⊗ fockstate(mode, 0),
         h,
-        callback=PresetTimeCallback(simulation_tstops, filter_tstops=false, integrator -> return));
+        callback=PresetTimeCallback(simulation_tstops, integrator -> return));
     solution = solution[end]
 
     #############################################
