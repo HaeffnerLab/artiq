@@ -101,18 +101,14 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
         pulse = laser_pulses[laser]
         t_pi = pi_min * sqrt(intensity_factor / (pulse["amp"] * 10^(-1.5 * pulse["att"] / 10)))
         E = Efield_from_pi_time(t_pi, trap.Bhat, laser, ions[1], ("S-1/2", "D-1/2"))
-        laser.E = let pulse=deepcopy(pulse), E=deepcopy(E)
-            t -> E * step_pulse(t, pulse)
-        end
+        laser.E = t -> E * step_pulse(t, pulse)
     end
 
     #############################################
     # Set up the time-dependent phase
     for laser in lasers
         pulse = laser_pulses[laser]
-        laser.ϕ = let pulse=deepcopy(pulse)
-            t -> 2π * pulse["phase"]
-        end
+        laser.ϕ = t -> 2π * pulse["phase"]
     end
     
     #############################################
