@@ -4,6 +4,8 @@ using DifferentialEquations
 using Distributions
 using DataStructures
 
+export simulate_with_ion_sim
+
 function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
     #############################################
     # This function must return a dictionary of result values. The keys
