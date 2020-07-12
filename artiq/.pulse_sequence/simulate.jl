@@ -85,10 +85,6 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
         t >= t_begin && t < t_end ? 1 : 0
     end
 
-    function step_pulse(t, pulse)
-        step_interval(t, pulse["time_on"], pulse["time_off"])
-    end
-
     function project(solution, states...)
         real.(expect(ionprojector(trap, states...), solution))
     end
@@ -101,7 +97,7 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
         pulse = laser_pulses[laser]
         t_pi = pi_min * sqrt(intensity_factor / (pulse["amp"] * 10^(-1.5 * pulse["att"] / 10)))
         E = Efield_from_pi_time(t_pi, trap.Bhat, laser, ions[1], ("S-1/2", "D-1/2"))
-        laser.E = t -> E * step_pulse(t, pulse)
+        laser.E = t -> E * step_interval(t, pulse["time_on"], pulse["time_off"])
     end
 
     #############################################
@@ -173,7 +169,7 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
     # Apply projection noise and renormalize
     total_probability = 0
     for (state, probability) in result
-        result[state] = mean(rand(Binomial(1, probability), 100))
+        result[state] = mean(rand(Binomial(1, max(0, min(probability, 1))), 100))
         total_probability += result[state]
     end
     for (state, probability) in result
