@@ -25,7 +25,7 @@ for duration in 0:1e-6:20e-6
         ),
     ]
     
-    result = simulate_with_ion_sim(test_parameters, test_pulses, 1, b_field)
+    result = simulate_with_ion_sim(test_parameters, test_pulses, num_ions, b_field)
     push!(carrier_results, result["D"])
 end
 
@@ -44,7 +44,7 @@ for duration in 0:2e-6:50e-6
         ),
     ]
     
-    result = simulate_with_ion_sim(test_parameters, test_pulses, 1, b_field)
+    result = simulate_with_ion_sim(test_parameters, test_pulses, num_ions, b_field)
     push!(sideband_results, result["D"])
 end
 

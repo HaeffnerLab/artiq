@@ -6,6 +6,9 @@ using DataStructures
 
 export simulate_with_ion_sim
 
+# Note: IonSim seems to have problems with timescales other than 1e-6
+timescale = 1e-6
+
 function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
     #############################################
     # This function must return a dictionary of result values. The keys
@@ -21,9 +24,11 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
 
     #############################################
     # Create and load the ions
+    S = ["S-1/2", "S+1/2"]
+    D = ["D-5/2", "D-3/2", "D-1/2" ,"D+1/2", "D+3/2", "D+5/2"]
     ions = Array{Ca40}(undef, num_ions)
     for i = 1:num_ions
-        ions[i] = Ca40()
+        ions[i] = Ca40([S; D])
     end
     
     axial_frequency = parameters["TrapFrequencies.axial_frequency"]
@@ -68,18 +73,18 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
     simulation_stop_time = 0
     for laser in lasers
         pulse = laser_pulses[laser]
-        simulation_start_time = min(simulation_start_time, pulse["time_on"])
-        simulation_stop_time = max(simulation_stop_time, pulse["time_off"])
+        simulation_start_time = min(simulation_start_time, pulse["time_on"] / timescale)
+        simulation_stop_time = max(simulation_stop_time, pulse["time_off"] / timescale)
     end
     if isinf(simulation_start_time)
         simulation_start_time = 0
         simulation_stop_time = 0
     end
     simulation_total_time = simulation_stop_time - simulation_start_time
-    simulation_tspan = range(simulation_start_time - 1e-9, simulation_stop_time + 1e-9, length=2)
+    simulation_tspan = range(simulation_start_time - (1e-3*timescale), simulation_stop_time + (1e-3*timescale), length=2)
     
-    println("Total simulation time is $(simulation_total_time*1e6) μs")
-    println("(start time = $(simulation_start_time*1e6) μs, stop time = $(simulation_stop_time*1e6) μs)")
+    println("Total simulation time is $(simulation_total_time*timescale*1e6) μs")
+    println("(start time = $(simulation_start_time*timescale*1e6) μs, stop time = $(simulation_stop_time*timescale*1e6) μs)")
 
     #############################################
     # Helpful functions
@@ -99,7 +104,7 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
         pulse = laser_pulses[laser]
         t_pi = pi_min * sqrt(intensity_factor / (pulse["amp"] * 10^(-1.5 * pulse["att"] / 10)))
         E = Efield_from_pi_time(t_pi, trap.Bhat, laser, ions[1], ("S-1/2", "D-1/2"))
-        laser.E = t -> E * step_interval(t, pulse["time_on"], pulse["time_off"])
+        laser.E = t -> E * step_interval(t, pulse["time_on"] / timescale, pulse["time_off"] / timescale)
     end
 
     #############################################
@@ -123,16 +128,16 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
     simulation_tstops = SortedSet{Float64}()
     for laser in lasers
         pulse = laser_pulses[laser]
-        push!(simulation_tstops, pulse["time_on"])
-        push!(simulation_tstops, pulse["time_off"])
+        push!(simulation_tstops, pulse["time_on"] / timescale)
+        push!(simulation_tstops, pulse["time_off"] / timescale)
     end
     simulation_tstops = collect(simulation_tstops)
     println("Calculated pulse start/stop times as $simulation_tstops")
 
-    h = hamiltonian(trap, timescale=1, rwa_cutoff=1e5)
+    h = hamiltonian(trap, lamb_dicke_order=1, timescale=timescale, rwa_cutoff=1e5)
     @time tout, solution = timeevolution.schroedinger_dynamic(
         simulation_tspan,
-        initial_state ⊗ fockstate(mode, 0),
+        tensor(initial_state, fockstate(mode, 0)),
         h,
         callback=PresetTimeCallback(simulation_tstops, integrator -> return));
     solution = solution[end]
@@ -140,8 +145,6 @@ function simulate_with_ion_sim(parameters, pulses, num_ions, b_field)
     #############################################
     # Measure the expectation values
     result = undef
-    S = ["S-1/2", "S+1/2"]
-    D = ["D-5/2", "D-3/2", "D-1/2" ,"D+1/2", "D+3/2", "D+5/2"]
     if length(ions) == 1
         result = Dict(
             "S" => sum([project(solution, state) for state=S]),
